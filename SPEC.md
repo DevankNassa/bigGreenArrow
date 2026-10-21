@@ -209,7 +209,7 @@ The arrow needs enough data before it can mean anything.
 
 ### 7.4 History
 - A reverse-chronological list showing date, scale weight, trend at that point, and the difference from trend.
-- Swipe to edit or delete. All trend values after the edited date are recomputed.
+- Tap a row to edit it (weight, day, note), exclude it from the trend, or delete it (with confirmation). Swipe actions can be added later as a shortcut. All trend values after the edited date are recomputed.
 - Each entry shows a small source badge (manual, Apple Health, Health Connect, import). Entries that came from Health can be **excluded** but not edited, because Health owns that data.
 
 ### 7.5 Settings

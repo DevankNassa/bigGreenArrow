@@ -6,13 +6,18 @@ import { useTheme } from '@/hooks/use-theme';
 
 type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
-  variant?: 'primary' | 'secondary' | 'plain';
+  variant?: 'primary' | 'secondary' | 'destructive' | 'plain';
 };
 
 export function Button({ label, variant = 'primary', disabled, ...rest }: ButtonProps) {
   const theme = useTheme();
-  const background =
-    variant === 'primary' ? ToneColors.big_green : variant === 'secondary' ? theme.backgroundElement : 'transparent';
+  const background = {
+    primary: ToneColors.big_green,
+    secondary: theme.backgroundElement,
+    destructive: ToneColors.red,
+    plain: 'transparent',
+  }[variant];
+  const filled = variant === 'primary' || variant === 'destructive';
 
   return (
     <Pressable
@@ -24,7 +29,7 @@ export function Button({ label, variant = 'primary', disabled, ...rest }: Button
         { backgroundColor: background, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
       ]}
       {...rest}>
-      <ThemedText type="smallBold" style={variant === 'primary' && styles.primaryLabel}>
+      <ThemedText type="smallBold" style={filled && styles.filledLabel}>
         {label}
       </ThemedText>
     </Pressable>
@@ -42,7 +47,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.two,
     paddingVertical: Spacing.two,
   },
-  primaryLabel: {
+  filledLabel: {
     color: '#ffffff',
     fontSize: 16,
   },

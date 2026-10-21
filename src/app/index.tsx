@@ -20,6 +20,12 @@ export default function HomeScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
+        <View style={styles.topBar}>
+          {weighIns.length > 0 && (
+            <Button label="History" variant="plain" onPress={() => router.push('/history')} />
+          )}
+        </View>
+
         {weighIns.length === 0 ? (
           <View style={styles.empty}>
             <TrendArrow tone="gray" angleDeg={0} dimmed accessibilityLabel="No weigh-ins yet" />
@@ -61,6 +67,12 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     paddingHorizontal: Spacing.four,
     paddingBottom: Spacing.four,
+  },
+  topBar: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    minHeight: 44,
   },
   empty: {
     flex: 1,
