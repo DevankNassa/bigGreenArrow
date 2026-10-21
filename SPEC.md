@@ -193,7 +193,9 @@ The arrow needs enough data before it can mean anything.
 
 ### 7.2 Log Weight
 - Opens with a number pad pre-filled with the last value, so a typical entry only changes the last 1–2 digits.
-- Date and time default to now and can be changed for back-dated entries.
+- Date and time default to now. A day stepper (‹ Today ›) handles back-dated entries, keeping the current time of day. A full date/time picker can come later.
+- −/+ buttons step the value by 0.1. A decimal comma is accepted as well as a point.
+- Values outside 20–400 kg are rejected as typos.
 - Optional note.
 - **Outlier check:** if the entry differs from the trend by more than 3%, ask *"That's a big jump from your trend. Save anyway?"* to catch typos such as 8.24 vs 82.4.
 - If Health write-back is on, the manual entry is also written to Apple Health / Health Connect (see §8).
@@ -417,6 +419,8 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-10-21 | Flat (dash) zone is ±0.15% BW/week by default and adjustable |
 | 2026-10-21 | Red threshold (light red → red) is set by the user. Default: the optimal min, mirrored |
 | 2026-10-21 | Arrow angle: optimal max at 60°, vertical at 1.5× optimal max. Time-to-target hidden while flat |
+| 2026-10-21 | Storage: SQLite (`expo-sqlite`), schema versioned with `PRAGMA user_version`. Preferences stored as JSON values per key |
+| 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
 
 ## 17. Open Questions
 1. **Optimal / On target celebration animation:** the owner wants to redesign it (deferred, 2026-10-21). The current pulse in `src/components/trend-arrow.tsx` and the confetti described in §6.5 are placeholders until then.

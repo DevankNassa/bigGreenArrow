@@ -10,7 +10,7 @@ A free, open-source weight tracker that ignores the day-to-day noise of the scal
 
 No accounts, no ads, no servers. Your data stays on your phone. See [SPEC.md](SPEC.md) for the full product spec.
 
-> **Status:** early development. The trend and arrow engine is done; the app screens use demo data for now.
+> **Status:** early development. You can log weigh-ins and see your trend and arrow. Onboarding, settings, history, and Health sync are next.
 
 ## Development
 
@@ -18,11 +18,13 @@ Requires Node 22+ (Node 24 LTS recommended).
 
 ```bash
 npm install
-npm test            # engine unit tests
+npm test            # unit tests (engine, storage, helpers)
 npm run typecheck   # run `npx expo start` once first so it generates expo-env.d.ts
 npm run lint
 npx expo start      # dev server: press a for Android, w for web, or scan the QR code with Expo Go
 ```
+
+The web build is only for development. It stores data in the browser with SQLite compiled to WebAssembly, which is why `metro.config.js` sets cross-origin isolation headers.
 
 ### Project layout
 
@@ -30,6 +32,8 @@ npx expo start      # dev server: press a for Android, w for web, or scan the QR
 |---|---|
 | `src/engine/` | The trend and arrow engine: pure TypeScript, no React or native imports. Weigh-ins + settings → trend, rate, arrow state |
 | `src/app/` | Screens (Expo Router) |
+| `src/data/` | On-device storage: SQLite schema and migrations, weigh-ins, preferences |
+| `src/lib/` | Small app helpers: dates, weight input parsing, labels |
 | `src/components/` | UI components, including the arrow |
 | `src/demo/` | Sample histories for trying the arrow |
 

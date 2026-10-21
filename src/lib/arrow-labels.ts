@@ -33,7 +33,10 @@ export function stateLabel(state: ArrowState, goal: GoalType): string {
 export function confidenceNote(confidence: Confidence): string | null {
   switch (confidence.level) {
     case 'calibrating':
-      return `Calibrating: ${Math.min(confidence.weighIns, confidence.weighInsNeeded)} of ${confidence.weighInsNeeded} weigh-ins`;
+      // Shown under the "Calibrating" heading: say which requirement is still missing.
+      return confidence.weighIns < confidence.weighInsNeeded
+        ? `${confidence.weighIns} of ${confidence.weighInsNeeded} weigh-ins`
+        : `Day ${confidence.days} of ${confidence.daysNeeded}`;
     case 'low':
       return {
         stale: 'No weigh-in for over a week',
