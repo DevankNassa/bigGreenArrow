@@ -231,13 +231,17 @@ The arrow needs enough data before it can mean anything.
 | | Celebrations (animation and haptics) | on |
 | **Reminders** | Daily weigh-in reminder | on, 07:00 |
 | **Data** | Import CSV, Export CSV, Delete all data | (none) |
+
+Settings changes are collected in a draft and saved with a **Save changes** button, so goal validation and the over-1% warning (§7.5.2) run once, on save. The warning comes back only when the fastest pace or the goal type changed.
+
+**Built so far:** Goal, Pace, Arrow zones (flat zone, red threshold), Trend, Units, Delete all data. **Still to come:** Hide scale weight and Celebrations (after the arrow animation work), Reminders, Health, CSV import/export.
 | **Health** | Read weight from Apple Health / Health Connect | on if permission granted |
 | | Write manual entries back to Health | on |
 | | Re-import full history | (action) |
 
 #### 7.5.1 Choosing a pace
 The user sets their own optimal range; the app does not impose a default. The pace picker has:
-- **Two sliders** (min and max, in % BW/week) on a scale from 0 to 2.0, in 0.05 steps.
+- **Two steppers** (slowest and fastest optimal pace, in % BW/week) from the flat zone up to 2.0, in 0.05 steps. Steppers are precise, work with screen readers, and behave the same on every platform.
 - **Live translation** next to the sliders, in the user's own numbers. Example: *"At 82 kg, that's 0.41–0.82 kg per week"* and *"~9–18 weeks to 78 kg"*.
 - **Optional quick-pick chips** that only fill in the sliders and can be adjusted afterward. They are labeled *Gentle* (lose 0.25–0.5 / gain 0.15–0.25), *Moderate* (lose 0.5–1.0 / gain 0.25–0.5), and *Fast* (lose 0.75–1.25 / gain 0.5–0.75).
 
@@ -251,12 +255,16 @@ If the optimal **max** is set above **1.0% BW/week in either direction** (lose o
 - After the user confirms, a small amber caution tag ("Above 1%/week") stays next to the pace in Settings and on the chart's optimal corridor. The app does not keep nagging after that.
 - The warning comes back if the user changes the pace again.
 
-### 7.6 Onboarding (5 short screens)
-1. "The scale lies day to day. The trend doesn't." (short explanation with an animated example)
-2. **Connect Health.** Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
-3. Choose a goal (lose / gain / maintain) and optionally a target.
-4. **Choose a pace** (see §7.5.1), with the over-1% warning if it applies (§7.5.2). Skipped for `maintain`, which asks for a band instead.
-5. Units, plus current weight if Health returned nothing (this becomes the first weigh-in). Then turn on reminders. Smart-scale users get a "remind me only if no weigh-in synced by 10:00" option.
+### 7.6 Onboarding (short steps)
+Units come before the goal, because the target weight is typed in the user's unit.
+1. "The scale lies day to day. The trend doesn't." (short explanation, plus the "not medical advice" note)
+2. **Connect Health** *(once Health sync exists)*. Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
+3. **Units**, plus current weight if there is no data yet (optional; it becomes the first weigh-in).
+4. **Goal** (lose / gain / maintain) and target weight (optional, but required for `maintain`). A hint appears if the target is on the wrong side of the current weight.
+5. **Pace** (see §7.5.1), with the over-1% warning if it applies (§7.5.2). For `maintain`, the band was already set on the goal step, so this step only explains what "steady" means.
+6. **Reminders** *(once reminders exist)*. Smart-scale users get a "remind me only if no weigh-in synced by 10:00" option.
+
+The home screen redirects to onboarding until it is finished.
 
 ## 8. Health Integration
 
@@ -420,6 +428,7 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-10-21 | Red threshold (light red → red) is set by the user. Default: the optimal min, mirrored |
 | 2026-10-21 | Arrow angle: optimal max at 60°, vertical at 1.5× optimal max. Time-to-target hidden while flat |
 | 2026-10-21 | Storage: SQLite (`expo-sqlite`), schema versioned with `PRAGMA user_version`. Preferences stored as JSON values per key |
+| 2026-10-21 | Onboarding order: intro → units → goal → pace. Pace uses steppers with preset chips instead of sliders |
 | 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
 
 ## 17. Open Questions

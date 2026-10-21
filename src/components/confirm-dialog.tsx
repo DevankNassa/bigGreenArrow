@@ -14,6 +14,8 @@ type ConfirmDialogProps = {
   destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Backdrop tap or back button. Defaults to `onCancel`. */
+  onDismiss?: () => void;
 };
 
 /** A two-button confirmation. Used instead of Alert, whose buttons don't work on web. */
@@ -26,11 +28,12 @@ export function ConfirmDialog({
   destructive = false,
   onConfirm,
   onCancel,
+  onDismiss = onCancel,
 }: ConfirmDialogProps) {
   const theme = useTheme();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
-      <Pressable style={styles.backdrop} onPress={onCancel} accessibilityLabel={cancelLabel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <Pressable style={styles.backdrop} onPress={onDismiss} accessibilityLabel="Close">
         {/* Swallow taps on the card so they don't dismiss the dialog. */}
         <Pressable
           style={[styles.card, { backgroundColor: theme.background }]}

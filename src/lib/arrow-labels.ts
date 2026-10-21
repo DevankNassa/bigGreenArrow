@@ -35,7 +35,7 @@ export function confidenceNote(confidence: Confidence): string | null {
     case 'calibrating':
       // Shown under the "Calibrating" heading: say which requirement is still missing.
       return confidence.weighIns < confidence.weighInsNeeded
-        ? `${confidence.weighIns} of ${confidence.weighInsNeeded} weigh-ins`
+        ? `${confidence.weighIns} of ${confidence.weighInsNeeded} days logged`
         : `Day ${confidence.days} of ${confidence.daysNeeded}`;
     case 'low':
       return {
