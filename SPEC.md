@@ -165,8 +165,10 @@ The arrow needs enough data before it can mean anything.
 - If the lookback window has fewer than 4 weigh-ins (sparse logging), show the arrow at reduced opacity with *"Low confidence: log more often"*.
 
 ### 6.5 Celebration
-- **Optimal / On target:** the arrow pulses, then a short burst of confetti or particles, plus a haptic "success" tap.
-- **Streak:** a counter of consecutive days in Optimal (for example, "🔥 12 days on pace"), or On target for `maintain` (for example, "🔥 40 days holding steady").
+- **Style:** Duolingo-like. The arrow is chunky and round-capped, with a darker 3D lip underneath. It pops in whenever the screen opens, and it springs to each new angle.
+- **Optimal / On target:** the arrow crouches, hops with squash and stretch, and lands in a shockwave ring and confetti burst. Then a green halo blooms, the arrow floats gently, and stars twinkle around it. Haptics play on every beat: a light tap on the crouch, a medium tap on the launch, a heavy tap on landing, then a "success" notification.
+- **Reduced motion:** no hop or particles. The arrow fades in and the success haptic still plays.
+- **Streak:** a counter of consecutive days in Optimal (for example, "🔥 12 days on pace"), or On target for `maintain` (for example, "🔥 40 days holding steady"). It is an orange pill that pops in as the arrow lands. Then the number rolls up from yesterday's count, the flame flares with a haptic tap, and the flame keeps flickering.
 - **Too fast:** never celebrated. Show a supportive message instead, such as *"You're losing faster than your 1%/week limit. Consider eating a bit more to protect muscle."* (the number shown is the user's own optimal max).
 
 ## 7. Screens
@@ -432,4 +434,4 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
 
 ## 17. Open Questions
-1. **Optimal / On target celebration animation:** the owner wants to redesign it (deferred, 2026-10-21). The current pulse in `src/components/trend-arrow.tsx` and the confetti described in §6.5 are placeholders until then.
+1. **Optimal / On target celebration animation:** a first Duolingo-style pass is in (§6.5, 2026-10-21). It still needs tuning on a real device, especially the haptic feel on Android. It is drawn with plain Views; moving it to Skia (§13) is still open.

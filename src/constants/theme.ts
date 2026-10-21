@@ -38,6 +38,22 @@ export const ToneColors: Record<ArrowTone, string> = {
   amber: '#F59E0B',
 };
 
+/** Darker shade of each tone, drawn under the arrow as its 3D lip. */
+export const ToneShadeColors: Record<ArrowTone, string> = {
+  big_green: '#0E7A34',
+  light_green: '#5EB57D',
+  gray: '#767C87',
+  light_red: '#D27C7C',
+  red: '#A51B1B',
+  amber: '#B97508',
+};
+
+/** Celebration confetti. */
+export const ConfettiColors = ['#16A34A', '#58CC02', '#86D9A3', '#FACC15', '#FF9600', '#38BDF8', '#F472B6'];
+
+/** The streak flame's orange. */
+export const StreakColor = '#FF9600';
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
