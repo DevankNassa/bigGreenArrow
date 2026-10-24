@@ -1,17 +1,19 @@
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, ToneColors } from '@/constants/theme';
 import { useData } from '@/data/data-context';
 import { newManualWeighIn } from '@/data/weigh-ins';
-import { analyze, isLikelyOutlier, toKg, type IsoDate, type WeighIn } from '@/engine';
+import { analyze, isLikelyOutlier, localDate, toKg, type WeighIn } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
-import { addDays, atTimeOf, localIsoDate, localIsoTimestamp } from '@/lib/dates';
+import { addDays, atTimeOf, dayLabel, localIsoDate, localIsoTimestamp } from '@/lib/dates';
+import { isEditable } from '@/lib/history';
 import {
   MAX_WEIGHT_KG,
   MIN_WEIGHT_KG,
@@ -29,59 +31,101 @@ function mostRecent(weighIns: WeighIn[]): WeighIn | undefined {
   );
 }
 
-function dayLabel(date: IsoDate, today: IsoDate): string {
-  if (date === today) return 'Today';
-  if (date === addDays(today, -1)) return 'Yesterday';
-  const [y, m, d] = date.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  });
-}
-
 /** Back to where the user came from, or home when opened directly (deep link, notification). */
 function close() {
   if (router.canGoBack()) router.back();
   else router.replace('/');
 }
 
+const SOURCE_NAMES: Record<WeighIn['source'], string> = {
+  manual: 'manual entry',
+  import: 'import',
+  apple_health: 'Apple Health',
+  health_connect: 'Health Connect',
+};
+
+/** Adds a weigh-in, or edits one when opened as `/log?id=…`. */
 export default function LogScreen() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { weighIns } = useData();
+  // Captured once, so the form doesn't flip to "not found" while closing after a delete.
+  const [existing] = useState(() => (id === undefined ? undefined : weighIns.find((w) => w.id === id)));
+
+  if (id === undefined) return <WeighInForm />;
+  return existing ? <WeighInForm existing={existing} /> : <NotFound />;
+}
+
+function WeighInForm({ existing }: { existing?: WeighIn }) {
   const theme = useTheme();
-  const { weighIns, preferences, addWeighIn } = useData();
+  const { weighIns, preferences, addWeighIn, updateWeighIn, deleteWeighIn } = useData();
   const { unit, goal, trend } = preferences;
   const today = localIsoDate();
+  const editable = !existing || isEditable(existing);
 
-  // Pre-fill with the last weight so a typical entry only changes a digit or two.
-  const [text, setText] = useState(() => {
-    const last = mostRecent(weighIns);
-    return last ? formatWeightValue(last.weightKg, unit) : '';
+  // New entries start from the last weight so a typical entry only changes a digit or two.
+  const [initialText] = useState(() => {
+    const from = existing ?? mostRecent(weighIns);
+    return from ? formatWeightValue(from.weightKg, unit) : '';
   });
-  const [date, setDate] = useState(today);
-  const [note, setNote] = useState('');
+  const [text, setText] = useState(initialText);
+  const [date, setDate] = useState(existing ? localDate(existing.timestamp) : today);
+  const [note, setNote] = useState(existing?.note ?? '');
+  const [excluded, setExcluded] = useState(existing?.excluded ?? false);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const value = parseWeightInput(text);
-  const kg = value === null ? null : toKg(value, unit);
+  // Leave an untouched weight exactly as stored, rather than its rounded display value.
+  const kg = existing && text === initialText ? existing.weightKg : value === null ? null : toKg(value, unit);
   const problem = kg === null ? null : checkWeightKg(kg);
-  const trendKg = analyze(weighIns, goal, trend, today).latest?.trendKg;
-  const bigJump = kg !== null && !problem && trendKg !== undefined && isLikelyOutlier(kg, trendKg);
+
+  // Compare against the trend without this entry, so editing an outlier still warns.
+  const others = existing ? weighIns.filter((w) => w.id !== existing.id) : weighIns;
+  const trendKg = analyze(others, goal, trend, today).latest?.trendKg;
+  const bigJump =
+    editable && !excluded && kg !== null && !problem && trendKg !== undefined && isLikelyOutlier(kg, trendKg);
   const canSave = kg !== null && !problem && !saving;
 
-  async function save() {
-    if (kg === null || !canSave) return;
+  async function run(action: () => Promise<void>, failure: string) {
     setSaving(true);
-    setSaveError(null);
+    setError(null);
     try {
-      await addWeighIn(
-        newManualWeighIn({ timestamp: localIsoTimestamp(atTimeOf(date)), weightKg: kg, note }),
-      );
+      await action();
       close();
     } catch (e) {
-      setSaveError(`Couldn't save: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`${failure}: ${e instanceof Error ? e.message : String(e)}`);
       setSaving(false);
     }
+  }
+
+  function save() {
+    if (kg === null || !canSave) return;
+    if (!existing) {
+      const timestamp = localIsoTimestamp(atTimeOf(date));
+      return run(() => addWeighIn(newManualWeighIn({ timestamp, weightKg: kg, note })), "Couldn't save");
+    }
+    const changedDay = date !== localDate(existing.timestamp);
+    const trimmed = note.trim();
+    return run(
+      () =>
+        updateWeighIn({
+          ...existing,
+          // Keep the original time of day, and the original timestamp if the day didn't change.
+          timestamp: changedDay
+            ? localIsoTimestamp(atTimeOf(date, new Date(existing.timestamp)))
+            : existing.timestamp,
+          weightKg: kg,
+          note: trimmed || undefined,
+          excluded,
+        }),
+      "Couldn't save",
+    );
+  }
+
+  function remove() {
+    setConfirmingDelete(false);
+    if (existing) return run(() => deleteWeighIn(existing.id), "Couldn't delete");
   }
 
   const step = (delta: number) => {
@@ -89,30 +133,26 @@ export default function LogScreen() {
     if (next !== null) setText(next);
   };
 
-  const inputStyle = { color: theme.text, borderColor: theme.backgroundSelected };
-
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.header}>
           <Button label="Cancel" variant="plain" onPress={close} />
-          <ThemedText type="smallBold">Log weight</ThemedText>
-          <Button
-            label={bigJump ? 'Save anyway' : 'Save'}
-            variant="plain"
-            disabled={!canSave}
-            onPress={save}
-          />
+          <ThemedText type="smallBold">{existing ? 'Edit weigh-in' : 'Log weight'}</ThemedText>
+          <Button label={bigJump ? 'Save anyway' : 'Save'} variant="plain" disabled={!canSave} onPress={save} />
         </View>
 
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.weightRow}>
-            <Button label="−" variant="secondary" accessibilityLabel="Decrease by 0.1" onPress={() => step(-0.1)} />
+            {editable && (
+              <Button label="−" variant="secondary" accessibilityLabel="Decrease by 0.1" onPress={() => step(-0.1)} />
+            )}
             <TextInput
               value={text}
               onChangeText={setText}
               onSubmitEditing={save}
-              autoFocus
+              editable={editable}
+              autoFocus={!existing}
               keyboardType="decimal-pad"
               returnKeyType="done"
               placeholder="0.0"
@@ -120,10 +160,19 @@ export default function LogScreen() {
               accessibilityLabel={`Weight in ${unit}`}
               style={[styles.weightInput, { color: theme.text }]}
             />
-            <Button label="+" variant="secondary" accessibilityLabel="Increase by 0.1" onPress={() => step(0.1)} />
+            {editable && (
+              <Button label="+" variant="secondary" accessibilityLabel="Increase by 0.1" onPress={() => step(0.1)} />
+            )}
           </View>
           <ThemedText themeColor="textSecondary">{unit}</ThemedText>
 
+          {!editable && existing && (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
+              From {SOURCE_NAMES[existing.source]}
+              {existing.originApp ? ` (${existing.originApp})` : ''}. Change it there; here you can
+              exclude it from your trend.
+            </ThemedText>
+          )}
           {text !== '' && value === null && <ThemedText style={styles.error}>Enter a number, like 82.4</ThemedText>}
           {problem && (
             <ThemedText style={styles.error}>
@@ -139,35 +188,82 @@ export default function LogScreen() {
             </View>
           )}
 
-          <View style={styles.dateRow}>
-            <Button
-              label="‹"
-              variant="secondary"
-              accessibilityLabel="Previous day"
-              onPress={() => setDate(addDays(date, -1))}
-            />
-            <ThemedText style={styles.dateLabel}>{dayLabel(date, today)}</ThemedText>
-            <Button
-              label="›"
-              variant="secondary"
-              accessibilityLabel="Next day"
-              disabled={date >= today}
-              onPress={() => setDate(addDays(date, 1))}
-            />
-          </View>
+          {editable && (
+            <View style={styles.dateRow}>
+              <Button
+                label="‹"
+                variant="secondary"
+                accessibilityLabel="Previous day"
+                onPress={() => setDate(addDays(date, -1))}
+              />
+              <ThemedText style={styles.dateLabel}>{dayLabel(date, today)}</ThemedText>
+              <Button
+                label="›"
+                variant="secondary"
+                accessibilityLabel="Next day"
+                disabled={date >= today}
+                onPress={() => setDate(addDays(date, 1))}
+              />
+            </View>
+          )}
 
           <TextInput
             value={note}
             onChangeText={setNote}
             placeholder="Note (optional)"
             placeholderTextColor={theme.textSecondary}
+            accessibilityLabel="Note"
             maxLength={200}
-            style={[styles.note, inputStyle]}
+            style={[styles.note, { color: theme.text, borderColor: theme.backgroundSelected }]}
           />
 
-          {saveError && <ThemedText style={styles.error}>{saveError}</ThemedText>}
+          {existing && (
+            <View style={[styles.excludeRow, { backgroundColor: theme.backgroundElement }]}>
+              <View style={styles.excludeText}>
+                <ThemedText>Exclude from trend</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  For readings that aren&apos;t really yours, like a shared scale or a wrong setting.
+                </ThemedText>
+              </View>
+              <Switch value={excluded} onValueChange={setExcluded} accessibilityLabel="Exclude from trend" />
+            </View>
+          )}
+
+          {error && <ThemedText style={styles.error}>{error}</ThemedText>}
+
+          {existing && (
+            <Button
+              label="Delete weigh-in"
+              variant="destructive"
+              disabled={saving}
+              onPress={() => setConfirmingDelete(true)}
+            />
+          )}
         </ScrollView>
+
+        <ConfirmDialog
+          visible={confirmingDelete}
+          title="Delete this weigh-in?"
+          message={
+            existing && !editable
+              ? `This only removes it from Big Green Arrow. It may come back on the next sync; excluding it is usually better.`
+              : 'This can’t be undone.'
+          }
+          confirmLabel="Delete"
+          destructive
+          onConfirm={remove}
+          onCancel={() => setConfirmingDelete(false)}
+        />
       </SafeAreaView>
+    </ThemedView>
+  );
+}
+
+function NotFound() {
+  return (
+    <ThemedView style={[styles.container, styles.notFound]}>
+      <ThemedText>This weigh-in no longer exists.</ThemedText>
+      <Button label="Back" variant="secondary" onPress={close} />
     </ThemedView>
   );
 }
@@ -208,6 +304,9 @@ const styles = StyleSheet.create({
     width: 190,
     fontVariant: ['tabular-nums'],
   },
+  center: {
+    textAlign: 'center',
+  },
   error: {
     color: ToneColors.red,
     textAlign: 'center',
@@ -234,5 +333,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     paddingVertical: Spacing.two,
     fontSize: 16,
+  },
+  excludeRow: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.three,
+    padding: Spacing.three,
+    borderRadius: Spacing.three,
+  },
+  excludeText: {
+    flex: 1,
+    gap: Spacing.half,
+  },
+  notFound: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: Spacing.three,
   },
 });
