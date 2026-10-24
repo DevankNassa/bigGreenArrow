@@ -1,6 +1,6 @@
 # Big Green Arrow: Product Spec
 
-**Status:** Draft v0.4
+**Status:** Draft v0.5
 **Date:** 2026-10-21
 **Owner:** Devank Nassa
 
@@ -102,7 +102,7 @@ The arrow's state comes from **goal type + rate zone**.
 |---|---|
 | Maintenance (dash) | ± maintenance band (default ±0.15, adjustable) |
 | Slow (right direction) | between the maintenance band and the user's optimal **min** |
-| Optimal | between the user's optimal **min** and **max** |
+| Optimal | between the user's optimal **min** and **max**. The min can't be inside the flat band |
 | Too fast | beyond the user's optimal **max** |
 | Slow (wrong direction) | between the maintenance band and the **red threshold** on the wrong side |
 | Wrong way | beyond the **red threshold** on the wrong side |
@@ -152,7 +152,7 @@ For `maintain`, "flat" is the goal, so the celebrating arrow points **sideways**
 | Trend outside band but moving back toward target | **Returning** | 🟩 Light green arrow angled toward target |
 
 ### 6.2 Arrow Angle
-The arrow always points to the right, like a trend line read left to right. Its **angle maps continuously to the rate**: horizontal (→) is flat, and pointing straight up or down is the edge of the "too fast" zone. A faster rate gives a steeper arrow, so the arrow carries information instead of being just a few fixed icons. The `maintain` goal's on-target arrow sits at or near horizontal.
+The arrow always points to the right, like a trend line read left to right. Its **angle maps continuously to the rate**: horizontal (→) is flat, the optimal max sits at 60°, and the arrow points straight up or down at 1.5× the optimal max or faster. (For `maintain`, straight up or down is 1% BW/week.) A faster rate gives a steeper arrow, so the arrow carries information instead of being just a few fixed icons. The `maintain` goal's on-target arrow sits at or near horizontal.
 
 ### 6.3 Hysteresis (prevent flicker)
 When the rate sits near a zone boundary, the state could flip every day. Rules:
@@ -193,7 +193,9 @@ The arrow needs enough data before it can mean anything.
 
 ### 7.2 Log Weight
 - Opens with a number pad pre-filled with the last value, so a typical entry only changes the last 1–2 digits.
-- Date and time default to now and can be changed for back-dated entries.
+- Date and time default to now. A day stepper (‹ Today ›) handles back-dated entries, keeping the current time of day. A full date/time picker can come later.
+- −/+ buttons step the value by 0.1. A decimal comma is accepted as well as a point.
+- Values outside 20–400 kg are rejected as typos.
 - Optional note.
 - **Outlier check:** if the entry differs from the trend by more than 3%, ask *"That's a big jump from your trend. Save anyway?"* to catch typos such as 8.24 vs 82.4.
 - If Health write-back is on, the manual entry is also written to Apple Health / Health Connect (see §8).
@@ -237,7 +239,7 @@ The arrow needs enough data before it can mean anything.
 The user sets their own optimal range; the app does not impose a default. The pace picker has:
 - **Two sliders** (min and max, in % BW/week) on a scale from 0 to 2.0, in 0.05 steps.
 - **Live translation** next to the sliders, in the user's own numbers. Example: *"At 82 kg, that's 0.41–0.82 kg per week"* and *"~9–18 weeks to 78 kg"*.
-- **Optional quick-pick chips** that only fill in the sliders and can be adjusted afterward. They are labeled *Gentle* (lose 0.25–0.5 / gain 0.1–0.25), *Moderate* (lose 0.5–1.0 / gain 0.25–0.5), and *Fast* (lose 0.75–1.25 / gain 0.5–0.75).
+- **Optional quick-pick chips** that only fill in the sliders and can be adjusted afterward. They are labeled *Gentle* (lose 0.25–0.5 / gain 0.15–0.25), *Moderate* (lose 0.5–1.0 / gain 0.25–0.5), and *Fast* (lose 0.75–1.25 / gain 0.5–0.75).
 
 #### 7.5.2 Over-1% warning
 If the optimal **max** is set above **1.0% BW/week in either direction** (lose or gain):
@@ -298,11 +300,11 @@ WeighIn {
 Goal {
   type: 'lose' | 'gain' | 'maintain'
   targetKg?: number
-  maintainBandPct: number
+  targetBandPct: number      // maintain: ± % of target that counts as on target, default 1.5
   startedAt: ISO8601
   optimalMinPct: number      // user-chosen, % BW/week (magnitude)
   optimalMaxPct: number
-  maintenanceBandPct: number // dash zone, default 0.15
+  flatBandPct: number        // dash zone, default 0.15
   redThresholdPct?: number   // light red → red boundary on the wrong side; unset = optimalMinPct
   aboveLimitAcknowledged: boolean // user confirmed the >1%/week warning
 }
@@ -416,6 +418,9 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-10-21 | Open source under the MIT License |
 | 2026-10-21 | Flat (dash) zone is ±0.15% BW/week by default and adjustable |
 | 2026-10-21 | Red threshold (light red → red) is set by the user. Default: the optimal min, mirrored |
+| 2026-10-21 | Arrow angle: optimal max at 60°, vertical at 1.5× optimal max. Time-to-target hidden while flat |
+| 2026-10-21 | Storage: SQLite (`expo-sqlite`), schema versioned with `PRAGMA user_version`. Preferences stored as JSON values per key |
+| 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
 
 ## 17. Open Questions
-None right now.
+1. **Optimal / On target celebration animation:** the owner wants to redesign it (deferred, 2026-10-21). The current pulse in `src/components/trend-arrow.tsx` and the confetti described in §6.5 are placeholders until then.
