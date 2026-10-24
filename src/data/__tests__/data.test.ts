@@ -1,6 +1,6 @@
 import type { WeighIn } from '@/engine';
 
-import { migrate, type Db } from '../db';
+import { deleteAllData, migrate, type Db } from '../db';
 import { DEFAULT_PREFERENCES, getPreferences, setPreference } from '../preferences';
 import {
   deleteWeighIn,
@@ -87,6 +87,16 @@ describe('weigh-ins', () => {
   it('trims notes and drops blank ones', () => {
     expect(manual('2026-10-21T07:00:00+02:00', 82, '  ate late  ').note).toBe('ate late');
     expect(manual('2026-10-21T07:00:00+02:00', 82, '   ')).not.toHaveProperty('note');
+  });
+});
+
+describe('deleteAllData', () => {
+  it('removes weigh-ins and preferences', async () => {
+    await insertWeighIn(db, manual('2026-10-21T07:00:00+02:00', 82.4));
+    await setPreference(db, 'onboarded', true);
+    await deleteAllData(db);
+    expect(await listWeighIns(db)).toEqual([]);
+    expect(await getPreferences(db)).toEqual(DEFAULT_PREFERENCES);
   });
 });
 

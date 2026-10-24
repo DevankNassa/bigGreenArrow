@@ -28,6 +28,11 @@ const MIGRATIONS: string[] = [
   `,
 ];
 
+/** Removes every weigh-in and preference, leaving an empty, migrated database. */
+export async function deleteAllData(db: Db): Promise<void> {
+  await db.execAsync('BEGIN; DELETE FROM weigh_ins; DELETE FROM preferences; COMMIT;');
+}
+
 /** Brings the schema up to date, tracking the version in `PRAGMA user_version`. */
 export async function migrate(db: Db): Promise<void> {
   await db.execAsync(`PRAGMA journal_mode = 'wal'`);

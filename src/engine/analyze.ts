@@ -54,6 +54,7 @@ export interface Analysis {
   confidence: Confidence;
   /** Null while calibrating. */
   arrow: ArrowReading | null;
+  /** Null while calibrating, since a rate from a few points is noise. */
   daysToTarget: number | null;
 }
 
@@ -94,7 +95,10 @@ export function analyze(
     latest,
     confidence,
     arrow,
-    daysToTarget: latest?.rate ? daysToTarget(goal, latest.trendKg, latest.rate) : null,
+    daysToTarget:
+      latest?.rate && confidence.level !== 'calibrating'
+        ? daysToTarget(goal, latest.trendKg, latest.rate)
+        : null,
   };
 }
 

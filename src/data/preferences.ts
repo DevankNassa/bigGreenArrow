@@ -10,16 +10,16 @@ import {
 import type { Db } from './db';
 
 export interface Preferences {
+  /** False until onboarding is finished; the home screen redirects there. */
+  onboarded: boolean;
   unit: WeightUnit;
   goal: Goal;
   trend: TrendSettings;
 }
 
-/**
- * Used until onboarding and Settings exist. Onboarding will have the user
- * choose their own pace (SPEC §7.5.1) instead of this placeholder.
- */
+/** Starting values; onboarding has the user choose their own goal and pace (SPEC §7.6). */
 export const DEFAULT_PREFERENCES: Preferences = {
+  onboarded: false,
   unit: 'kg',
   goal: {
     type: 'lose',

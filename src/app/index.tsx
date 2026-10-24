@@ -1,4 +1,4 @@
-import { Link, router } from 'expo-router';
+import { Link, Redirect, router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,13 +17,18 @@ export default function HomeScreen() {
   const { goal, trend, unit } = preferences;
   const analysis = analyze(weighIns, goal, trend, localIsoDate());
 
+  if (!preferences.onboarded) return <Redirect href="/onboarding" />;
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topBar}>
-          {weighIns.length > 0 && (
+          {weighIns.length > 0 ? (
             <Button label="History" variant="plain" onPress={() => router.push('/history')} />
+          ) : (
+            <View />
           )}
+          <Button label="Settings" variant="plain" onPress={() => router.push('/settings')} />
         </View>
 
         {weighIns.length === 0 ? (

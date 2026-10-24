@@ -7,9 +7,11 @@ import { useTheme } from '@/hooks/use-theme';
 type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   variant?: 'primary' | 'secondary' | 'destructive' | 'plain';
+  /** Smaller padding, for inline controls like steppers. */
+  compact?: boolean;
 };
 
-export function Button({ label, variant = 'primary', disabled, ...rest }: ButtonProps) {
+export function Button({ label, variant = 'primary', compact = false, disabled, ...rest }: ButtonProps) {
   const theme = useTheme();
   const background = {
     primary: ToneColors.big_green,
@@ -26,6 +28,7 @@ export function Button({ label, variant = 'primary', disabled, ...rest }: Button
       style={({ pressed }) => [
         styles.button,
         variant === 'plain' && styles.plain,
+        compact && styles.compact,
         { backgroundColor: background, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
       ]}
       {...rest}>
@@ -42,6 +45,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.three,
     borderRadius: Spacing.five,
     alignItems: 'center',
+  },
+  compact: {
+    paddingHorizontal: Spacing.three,
+    paddingVertical: Spacing.two,
   },
   plain: {
     paddingHorizontal: Spacing.two,
