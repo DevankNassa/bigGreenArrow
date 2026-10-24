@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
+import { StreakBadge } from '@/components/streak-badge';
 import { ThemedText } from '@/components/themed-text';
 import { TrendArrow } from '@/components/trend-arrow';
 import { Spacing, ToneColors } from '@/constants/theme';
@@ -65,9 +66,10 @@ export function ArrowSummary({
             Latest scale: {formatWeight(latest.weightKg, unit)}
           </ThemedText>
           {arrow?.celebrating && (
-            <ThemedText type="smallBold">
-              🔥 {arrow.streakDays} days {goal.type === 'maintain' ? 'holding steady' : 'on pace'}
-            </ThemedText>
+            <StreakBadge
+              days={arrow.streakDays}
+              label={goal.type === 'maintain' ? 'holding steady' : 'on pace'}
+            />
           )}
           {analysis.daysToTarget !== null && analysis.daysToTarget > 0 && goal.targetKg && (
             <ThemedText type="small">

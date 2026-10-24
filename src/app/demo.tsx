@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ArrowSummary } from '@/components/arrow-summary';
+import { Button } from '@/components/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
@@ -15,6 +16,8 @@ import { localIsoDate } from '@/lib/dates';
 export default function DemoScreen() {
   const theme = useTheme();
   const [scenarioKey, setScenarioKey] = useState(SCENARIOS[0].key);
+  // Remounting the summary replays the entrance and any celebration.
+  const [replays, setReplays] = useState(0);
   const scenario = SCENARIOS.find((s) => s.key === scenarioKey)!;
   const analysis = analyze(scenario.weighIns, scenario.goal, DEFAULT_TREND_SETTINGS, localIsoDate());
 
@@ -42,7 +45,9 @@ export default function DemoScreen() {
           Demo data · goal: {scenario.goal.type}
         </ThemedText>
 
-        <ArrowSummary analysis={analysis} goal={scenario.goal} unit="kg" />
+        <ArrowSummary key={replays} analysis={analysis} goal={scenario.goal} unit="kg" />
+
+        <Button label="Replay animation" variant="secondary" onPress={() => setReplays((n) => n + 1)} />
       </SafeAreaView>
     </ThemedView>
   );
