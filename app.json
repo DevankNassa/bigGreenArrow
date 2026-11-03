@@ -9,7 +9,10 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.devanknassa.biggreenarrow"
+      "bundleIdentifier": "com.devanknassa.biggreenarrow",
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
