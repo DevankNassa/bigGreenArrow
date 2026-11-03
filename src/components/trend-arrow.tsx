@@ -279,9 +279,10 @@ function discBox(size: number, disc: number) {
 
 /**
  * A chunky, round-capped arrow pointing right, centered in a `size` box:
- * a shaft plus two head strokes that meet at the tip.
+ * a shaft plus two head strokes that meet at the tip. Along its axis it spans
+ * 0.085–0.885 of `size` (tail cap to tip cap).
  */
-function ArrowShape({
+export function ArrowShape({
   size,
   color,
   dash,

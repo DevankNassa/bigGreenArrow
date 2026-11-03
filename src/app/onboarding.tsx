@@ -92,7 +92,7 @@ export default function OnboardingScreen() {
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           {step === 'intro' && (
             <View style={styles.intro}>
-              <TrendArrow tone="big_green" angleDeg={-40} accessibilityLabel="A green arrow pointing down" />
+              <TrendArrow tone="big_green" angleDeg={-90} accessibilityLabel="A green arrow pointing straight down" />
               <ThemedText type="subtitle" style={styles.center}>
                 The scale lies day to day. The trend doesn&apos;t.
               </ThemedText>

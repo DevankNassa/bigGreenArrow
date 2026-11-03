@@ -23,7 +23,7 @@ export function Segmented<T extends string | number>({
     <View
       accessibilityRole="radiogroup"
       accessibilityLabel={accessibilityLabel}
-      style={[styles.group, { backgroundColor: theme.backgroundElement }]}>
+      style={[styles.group, { borderColor: theme.text }]}>
       {options.map((o) => {
         const selected = o.value === value;
         return (
@@ -32,8 +32,10 @@ export function Segmented<T extends string | number>({
             accessibilityRole="radio"
             accessibilityState={{ selected }}
             onPress={() => onChange(o.value)}
-            style={[styles.option, selected && { backgroundColor: theme.background }]}>
-            <ThemedText type={selected ? 'smallBold' : 'small'}>{o.label}</ThemedText>
+            style={[styles.option, selected && { backgroundColor: theme.ink }]}>
+            <ThemedText type="smallBold" style={selected && { color: theme.onInk }}>
+              {o.label}
+            </ThemedText>
           </Pressable>
         );
       })}
@@ -44,7 +46,8 @@ export function Segmented<T extends string | number>({
 const styles = StyleSheet.create({
   group: {
     flexDirection: 'row',
-    borderRadius: Spacing.three,
+    borderWidth: 2,
+    borderRadius: 999,
     padding: Spacing.one,
     gap: Spacing.one,
   },
@@ -52,6 +55,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+    borderRadius: 999,
   },
 });

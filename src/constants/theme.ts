@@ -9,50 +9,65 @@ import { Platform } from 'react-native';
 
 import type { ArrowTone } from '@/engine';
 
+/** The Poster palette: warm paper and ink, inverted in dark mode. */
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: '#111111',
+    background: '#F4F1EA',
+    backgroundElement: '#E9E5DB',
+    backgroundSelected: '#DDD7C8',
+    textSecondary: '#4B4B4B',
+    /** Fill of primary buttons and selected segments. */
+    ink: '#111111',
+    onInk: '#FFFFFF',
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: '#F4F1EA',
+    background: '#141311',
+    backgroundElement: '#23211D',
+    backgroundSelected: '#33302A',
+    textSecondary: '#B8B2A6',
+    ink: '#F4F1EA',
+    onInk: '#111111',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
-/** Placeholder arrow palette; needs a colorblind pass before release (SPEC §11). */
+/**
+ * Arrow tones. Each one fills the home screen's hero block under white type,
+ * so all of them hold white text. `amber` is the too-fast warning orange.
+ * Still needs a colorblind pass before release (SPEC §11).
+ */
 export const ToneColors: Record<ArrowTone, string> = {
-  big_green: '#16A34A',
-  light_green: '#86D9A3',
-  gray: '#9CA3AF',
-  light_red: '#F2A3A3',
-  red: '#DC2626',
-  amber: '#F59E0B',
+  big_green: '#0F7A3A',
+  light_green: '#3E7F5B',
+  gray: '#5B616B',
+  light_red: '#B05656',
+  red: '#B91C1C',
+  amber: '#C2410C',
 };
 
 /** Darker shade of each tone, drawn under the arrow as its 3D lip. */
 export const ToneShadeColors: Record<ArrowTone, string> = {
-  big_green: '#0E7A34',
-  light_green: '#5EB57D',
-  gray: '#767C87',
-  light_red: '#D27C7C',
-  red: '#A51B1B',
-  amber: '#B97508',
+  big_green: '#0A5C2B',
+  light_green: '#2C5F43',
+  gray: '#41464E',
+  light_red: '#874040',
+  red: '#8A1414',
+  amber: '#7C2D12',
 };
 
-/** Celebration confetti. */
-export const ConfettiColors = ['#16A34A', '#58CC02', '#86D9A3', '#FACC15', '#FF9600', '#38BDF8', '#F472B6'];
+/** Celebration confetti: flat poster pieces over the hero block. */
+export const ConfettiColors = ['#FFFFFF', '#FACC15', '#111111', '#FFFFFF', '#FACC15'];
 
-/** The streak flame's orange. */
-export const StreakColor = '#FF9600';
+/** Archivo faces, loaded in the root layout. Each weight is its own family. */
+export const Type = {
+  display: 'ArchivoBlack_400Regular',
+  medium: 'Archivo_500Medium',
+  semiBold: 'Archivo_600SemiBold',
+  bold: 'Archivo_700Bold',
+} as const;
 
 export const Fonts = Platform.select({
   ios: {

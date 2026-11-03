@@ -45,7 +45,9 @@ export default function DemoScreen() {
           Demo data · goal: {scenario.goal.type}
         </ThemedText>
 
-        <ArrowSummary key={replays} analysis={analysis} goal={scenario.goal} unit="kg" />
+        <ScrollView style={styles.summary} contentContainerStyle={styles.summaryContent}>
+          <ArrowSummary key={replays} analysis={analysis} goal={scenario.goal} unit="kg" />
+        </ScrollView>
 
         <Button label="Replay animation" variant="secondary" onPress={() => setReplays((n) => n + 1)} />
       </SafeAreaView>
@@ -68,7 +70,14 @@ const styles = StyleSheet.create({
   },
   chipRow: {
     flexGrow: 0,
+    flexShrink: 0,
     alignSelf: 'stretch',
+  },
+  summary: {
+    alignSelf: 'stretch',
+  },
+  summaryContent: {
+    paddingBottom: Spacing.three,
   },
   chips: {
     gap: Spacing.two,

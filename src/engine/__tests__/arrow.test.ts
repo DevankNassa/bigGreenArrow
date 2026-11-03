@@ -115,14 +115,16 @@ describe('arrowAngle', () => {
     expect(arrowAngle(maintainGoal, 0)).toBe(0);
   });
 
-  it('points straight down at 1.5× the optimal max and clamps beyond', () => {
-    expect(arrowAngle(loseGoal, -1.5)).toBe(-90);
+  it('points straight down from the slowest optimal pace, through too fast', () => {
+    expect(arrowAngle(loseGoal, -0.5)).toBe(-90);
+    expect(arrowAngle(loseGoal, -0.8)).toBe(-90);
     expect(arrowAngle(loseGoal, -3)).toBe(-90);
-    expect(arrowAngle(loseGoal, -0.75)).toBeCloseTo(-45, 10);
+    expect(arrowAngle(loseGoal, -0.25)).toBeCloseTo(-45, 10);
   });
 
-  it('tilts up for gains', () => {
-    expect(arrowAngle(gainGoal, 0.375)).toBeCloseTo(45, 10);
+  it('points straight up for an optimal gain and tilts on the way there', () => {
+    expect(arrowAngle(gainGoal, 0.3)).toBe(90);
+    expect(arrowAngle(gainGoal, 0.125)).toBeCloseTo(45, 10);
     expect(arrowAngle(maintainGoal, 0.5)).toBeCloseTo(45, 10);
   });
 });

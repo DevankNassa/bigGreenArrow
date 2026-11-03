@@ -14,7 +14,7 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 export function Button({ label, variant = 'primary', compact = false, disabled, ...rest }: ButtonProps) {
   const theme = useTheme();
   const background = {
-    primary: ToneColors.big_green,
+    primary: theme.ink,
     secondary: theme.backgroundElement,
     destructive: ToneColors.red,
     plain: 'transparent',
@@ -32,7 +32,9 @@ export function Button({ label, variant = 'primary', compact = false, disabled, 
         { backgroundColor: background, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
       ]}
       {...rest}>
-      <ThemedText type="smallBold" style={filled && styles.filledLabel}>
+      <ThemedText
+        type="smallBold"
+        style={filled && [styles.filledLabel, { color: variant === 'primary' ? theme.onInk : '#ffffff' }]}>
         {label}
       </ThemedText>
     </Pressable>
@@ -43,7 +45,7 @@ const styles = StyleSheet.create({
   button: {
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
-    borderRadius: Spacing.five,
+    borderRadius: 999,
     alignItems: 'center',
   },
   compact: {
@@ -55,7 +57,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
   },
   filledLabel: {
-    color: '#ffffff',
     fontSize: 16,
   },
 });

@@ -11,13 +11,21 @@ import { Segmented } from '@/components/segmented';
 import { Stepper } from '@/components/stepper';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing, ToneColors } from '@/constants/theme';
+import { ZoneSlider } from '@/components/zone-slider';
+import { MaxContentWidth, Spacing, ToneColors, Type } from '@/constants/theme';
 import { useData } from '@/data/data-context';
 import type { Preferences } from '@/data/preferences';
-import { analyze, needsPaceWarning, redThresholdPct, validateGoal, type Goal, type TrendSettings } from '@/engine';
+import {
+  DEFAULT_FLAT_BAND_PCT,
+  analyze,
+  needsPaceWarning,
+  validateGoal,
+  type Goal,
+  type TrendSettings,
+} from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
 import { localIsoDate } from '@/lib/dates';
-import { GOAL_ERROR_MESSAGES, capPace, paceWarning } from '@/lib/pace';
+import { GOAL_ERROR_MESSAGES, capPace, paceWarning, startingPace } from '@/lib/pace';
 
 type Draft = Pick<Preferences, 'unit' | 'goal' | 'trend'>;
 
@@ -37,8 +45,6 @@ const SAME_DAY_OPTIONS = [
   { value: 'average', label: 'Average' },
 ] as const;
 
-const pct = (n: number) => `${n.toFixed(2)}%`;
-
 /** Whether the pace changed in a way that should re-show the over-1% warning. */
 function paceChanged(saved: Goal, next: Goal): boolean {
   return saved.type !== next.type || saved.optimalMaxPct !== next.optimalMaxPct;
@@ -54,6 +60,7 @@ export default function SettingsScreen() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   const { goal, trend, unit } = draft;
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
@@ -93,7 +100,10 @@ export default function SettingsScreen() {
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          scrollEnabled={!dragging}>
           <Section title="Goal">
             <GoalFields
               goal={goal}
@@ -111,41 +121,24 @@ export default function SettingsScreen() {
           )}
 
           <Section title="Arrow zones">
-            <Stepper
-              label="Flat zone"
-              hint="Rates within this show a dash (or count as steady when maintaining)"
-              value={goal.flatBandPct}
-              step={0.05}
-              min={0.05}
-              max={0.5}
-              format={(n) => `±${pct(n)}`}
-              onChange={(flatBandPct) => setGoal({ ...goal, flatBandPct })}
+            <ThemedText type="small" themeColor="textSecondary">
+              Drag a tab to set where each stage starts, in % of body weight per week.
+              {goal.type === 'maintain' &&
+                ` On target also needs your trend within ±${goal.targetBandPct}% of your target weight.`}
+            </ThemedText>
+            <ZoneSlider goal={goal} onChange={setGoal} onDragging={setDragging} />
+            <Button
+              label="Reset arrow zones"
+              variant="plain"
+              onPress={() =>
+                setGoal({
+                  ...goal,
+                  ...(goal.type === 'maintain' ? {} : startingPace(goal.type)),
+                  flatBandPct: DEFAULT_FLAT_BAND_PCT,
+                  redThresholdPct: undefined,
+                })
+              }
             />
-            {goal.type !== 'maintain' && (
-              <>
-                <Stepper
-                  label="Red threshold"
-                  hint={
-                    goal.redThresholdPct === undefined
-                      ? 'Wrong-way rate where light red turns red. Matches your slowest optimal pace.'
-                      : 'Wrong-way rate where light red turns red.'
-                  }
-                  value={redThresholdPct(goal)}
-                  step={0.05}
-                  min={goal.flatBandPct}
-                  max={2}
-                  format={pct}
-                  onChange={(redThresholdPct) => setGoal({ ...goal, redThresholdPct })}
-                />
-                {goal.redThresholdPct !== undefined && (
-                  <Button
-                    label="Match slowest optimal pace"
-                    variant="plain"
-                    onPress={() => setGoal({ ...goal, redThresholdPct: undefined })}
-                  />
-                )}
-              </>
-            )}
           </Section>
 
           <Section title="Trend">
@@ -263,11 +256,9 @@ export default function SettingsScreen() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   const theme = useTheme();
   return (
-    <View style={styles.section}>
-      <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionTitle}>
-        {title}
-      </ThemedText>
-      <View style={[styles.card, { borderColor: theme.backgroundElement }]}>{children}</View>
+    <View style={[styles.section, { borderTopColor: theme.text }]}>
+      <ThemedText style={styles.sectionTitle}>{title}</ThemedText>
+      <View style={styles.card}>{children}</View>
     </View>
   );
 }
@@ -296,16 +287,17 @@ const styles = StyleSheet.create({
     gap: Spacing.four,
   },
   section: {
-    gap: Spacing.two,
+    gap: Spacing.three,
+    paddingTop: Spacing.three,
+    borderTopWidth: 2,
   },
   sectionTitle: {
+    fontFamily: Type.display,
+    fontSize: 24,
+    lineHeight: 26,
     textTransform: 'uppercase',
-    paddingHorizontal: Spacing.two,
   },
   card: {
-    borderWidth: 1,
-    borderRadius: Spacing.four,
-    padding: Spacing.three,
     gap: Spacing.three,
   },
   labeled: {

@@ -1,15 +1,11 @@
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { Stepper } from '@/components/stepper';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, ToneColors } from '@/constants/theme';
 import { PACE_WARNING_PCT, fromKg, type Goal, type WeightUnit } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
 import { PACE_PRESETS, matchingPreset, paceKgPerWeek, weeksToTarget } from '@/lib/pace';
 import { formatWeight } from '@/lib/weight-input';
-
-const MAX_PACE_PCT = 2.0;
-const pct = (n: number) => `${n.toFixed(2)}%`;
 
 type PaceEditorProps = {
   /** A lose or gain goal. */
@@ -20,7 +16,7 @@ type PaceEditorProps = {
   atKg: number | undefined;
 };
 
-/** Chooses the optimal pace: preset chips plus min/max steppers (SPEC §7.5.1). */
+/** Chooses the optimal pace from preset chips; the arrow-zones slider fine-tunes it (SPEC §7.5.1). */
 export function PaceEditor({ goal, onChange, unit, atKg }: PaceEditorProps) {
   const theme = useTheme();
   if (goal.type === 'maintain') return null;
@@ -55,28 +51,6 @@ export function PaceEditor({ goal, onChange, unit, atKg }: PaceEditorProps) {
           );
         })}
       </View>
-
-      <Stepper
-        label="Slowest optimal pace"
-        hint="Slower than this shows a light green arrow"
-        value={goal.optimalMinPct}
-        step={0.05}
-        min={goal.flatBandPct}
-        max={Math.min(goal.optimalMaxPct - 0.05, MAX_PACE_PCT)}
-        format={pct}
-        onChange={(optimalMinPct) => onChange({ ...goal, optimalMinPct })}
-      />
-      <Stepper
-        label="Fastest optimal pace"
-        hint="Faster than this shows an amber warning"
-        value={goal.optimalMaxPct}
-        step={0.05}
-        min={goal.optimalMinPct + 0.05}
-        max={MAX_PACE_PCT}
-        format={pct}
-        warn={aboveLimit}
-        onChange={(optimalMaxPct) => onChange({ ...goal, optimalMaxPct })}
-      />
 
       <ThemedText type="small" themeColor="textSecondary">
         Percent of body weight per week.

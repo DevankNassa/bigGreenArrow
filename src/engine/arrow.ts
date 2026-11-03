@@ -1,9 +1,4 @@
-import {
-  ANGLE_FULL_SCALE_FACTOR,
-  HYSTERESIS_CONSECUTIVE,
-  HYSTERESIS_MARGIN_PCT,
-  MAINTAIN_ANGLE_FULL_SCALE_PCT,
-} from './constants';
+import { HYSTERESIS_CONSECUTIVE, HYSTERESIS_MARGIN_PCT, MAINTAIN_ANGLE_FULL_SCALE_PCT } from './constants';
 import type { ArrowState, ArrowTone, Goal, Measurement } from './types';
 
 export const STATE_TONE: Record<ArrowState, ArrowTone> = {
@@ -97,12 +92,11 @@ function nudged(goal: Goal, m: Measurement): Measurement[] {
 
 /**
  * Arrow tilt in degrees: 0 points right (flat), +90 straight up (gaining),
- * −90 straight down (losing).
+ * −90 straight down (losing). For lose/gain the arrow reaches vertical at the
+ * slowest optimal pace, so the whole optimal zone (and too fast, which only
+ * changes color) points straight down or up.
  */
 export function arrowAngle(goal: Goal, ratePct: number): number {
-  const fullScale =
-    goal.type === 'maintain'
-      ? MAINTAIN_ANGLE_FULL_SCALE_PCT
-      : goal.optimalMaxPct * ANGLE_FULL_SCALE_FACTOR;
+  const fullScale = goal.type === 'maintain' ? MAINTAIN_ANGLE_FULL_SCALE_PCT : goal.optimalMinPct;
   return Math.max(-1, Math.min(1, ratePct / fullScale)) * 90;
 }
