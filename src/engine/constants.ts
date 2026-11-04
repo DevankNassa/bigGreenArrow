@@ -30,7 +30,5 @@ export const HYSTERESIS_CONSECUTIVE = 2;
 /** Entries further than this from the trend ask for confirmation. */
 export const OUTLIER_PCT = 3;
 
-/** For lose/gain, the arrow is vertical at `optimalMaxPct × this`. */
-export const ANGLE_FULL_SCALE_FACTOR = 1.5;
 /** For maintain, the arrow is vertical at this rate. */
 export const MAINTAIN_ANGLE_FULL_SCALE_PCT = 1.0;

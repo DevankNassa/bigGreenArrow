@@ -35,6 +35,8 @@ describe('analyze', () => {
       daysNeeded: 7,
     });
     expect(fewEntries.arrow).toBeNull();
+    const withTarget = analyze(steadyLoss.slice(0, 4), { ...loseGoal, targetKg: 80 }, settings, addDays(START, 3));
+    expect(withTarget.daysToTarget).toBeNull();
 
     const fewDays = analyze(steadyLoss.slice(0, 6), loseGoal, settings, addDays(START, 5));
     expect(fewDays.confidence.level).toBe('calibrating');

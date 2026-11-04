@@ -1,0 +1,158 @@
+# Builds a signed App Store .ipa on a GitHub-hosted Mac and uploads it to
+# App Store Connect (it then shows up in TestFlight). No EAS account needed.
+# Run it from the Actions tab ("Run workflow") or `gh workflow run ios-release.yml`.
+# The build number is the workflow run number, so every upload is unique;
+# the version comes from `expo.version` in app.json.
+#
+# The native project is generated on the runner with `expo prebuild`
+# (Continuous Native Generation); ios/ is never committed.
+#
+# Needs these repository secrets (see RELEASE.md):
+#   IOS_DIST_CERT_P12_BASE64   Apple Distribution certificate + key, base64
+#   IOS_DIST_CERT_PASSWORD     password of that .p12
+#   IOS_PROFILE_BASE64         App Store provisioning profile for
+#                              com.devanknassa.biggreenarrow, base64
+#   APPSTORE_KEY_ID            App Store Connect API key ID
+#   APPSTORE_ISSUER_ID         App Store Connect API issuer ID
+#   APPSTORE_PRIVATE_KEY       contents of the AuthKey_<id>.p8 file
+name: iOS release (TestFlight)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Generates ios/ from app.json and runs `pod install`.
+      - name: Generate the iOS project
+        run: npx expo prebuild --platform ios --clean
+
+      - name: Install signing certificate and profile
+        env:
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          PROFILE: ${{ secrets.IOS_PROFILE_BASE64 }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          echo "$PROFILE" | base64 --decode > "$PROFILE_PATH"
+          security cms -D -i "$PROFILE_PATH" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(plutil -extract UUID raw "$RUNNER_TEMP/profile.plist")
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp "$PROFILE_PATH" ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+          echo "PROFILE_NAME=$(plutil -extract Name raw "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
+          echo "TEAM_ID=$(plutil -extract TeamIdentifier.0 raw "$RUNNER_TEMP/profile.plist")" >> "$GITHUB_ENV"
+
+      # Manual distribution signing goes on the app target only. Passing it
+      # on the xcodebuild command line would also hit the CocoaPods targets,
+      # which can't take a provisioning profile.
+      - name: Configure manual signing and build number
+        run: |
+          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          APP=$(basename "$WORKSPACE" .xcworkspace)
+          echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_ENV"
+          echo "SCHEME=$APP" >> "$GITHUB_ENV"
+          BUNDLE_ID=$(node -p "require('./app.json').expo.ios.bundleIdentifier")
+          echo "BUNDLE_ID=$BUNDLE_ID" >> "$GITHUB_ENV"
+
+          python3 - "ios/$APP.xcodeproj/project.pbxproj" "$BUNDLE_ID" "$TEAM_ID" "$PROFILE_NAME" <<'PY'
+          import re, sys
+          path, bundle_id, team, profile = sys.argv[1:]
+          text = open(path).read()
+          drop = re.compile(r'^\s*("?CODE_SIGN_IDENTITY(\[sdk=iphoneos\*\])?"?|CODE_SIGN_STYLE|DEVELOPMENT_TEAM|PROVISIONING_PROFILE_SPECIFIER) = .*;\n', re.M)
+          signing = (
+              f'\t\t\t\tCODE_SIGN_STYLE = Manual;\n'
+              f'\t\t\t\tDEVELOPMENT_TEAM = {team};\n'
+              f'\t\t\t\tCODE_SIGN_IDENTITY = "Apple Distribution";\n'
+              f'\t\t\t\t"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";\n'
+              f'\t\t\t\tPROVISIONING_PROFILE_SPECIFIER = "{profile}";\n'
+          )
+          count = 0
+          def sign(block):
+              global count
+              body = block.group(0)
+              if f'PRODUCT_BUNDLE_IDENTIFIER = {bundle_id};' not in body and f'PRODUCT_BUNDLE_IDENTIFIER = "{bundle_id}";' not in body:
+                  return body
+              count += 1
+              body = drop.sub('', body)
+              return body.replace('buildSettings = {\n', 'buildSettings = {\n' + signing, 1)
+          text = re.sub(r'buildSettings = \{\n.*?\n\t\t\t\};', sign, text, flags=re.S)
+          if count == 0:
+              sys.exit(f'No build configuration found for {bundle_id}')
+          open(path, 'w').write(text)
+          print(f'Signed {count} build configurations')
+          PY
+
+          PLIST="ios/$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${{ github.run_number }}" "$PLIST"
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict><key>$BUNDLE_ID</key><string>$PROFILE_NAME</string></dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -workspace "$WORKSPACE" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            | tail -200
+
+      - name: Export .ipa
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/app.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath build/ipa
+
+      - name: Upload to App Store Connect
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          APPSTORE_PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APPSTORE_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_"$APPSTORE_KEY_ID".p8
+          xcrun altool --upload-app --type ios \
+            --file build/ipa/*.ipa \
+            --apiKey "$APPSTORE_KEY_ID" --apiIssuer "$APPSTORE_ISSUER_ID"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: big-green-arrow-appstore-ipa
+          path: build/ipa/*.ipa
+          retention-days: 14

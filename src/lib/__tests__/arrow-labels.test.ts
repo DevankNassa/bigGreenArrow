@@ -13,7 +13,7 @@ describe('confidenceNote', () => {
   const calibrating = { level: 'calibrating', weighInsNeeded: 5, daysNeeded: 7 } as const;
 
   it('names whichever calibration requirement is missing', () => {
-    expect(confidenceNote({ ...calibrating, weighIns: 2, days: 2 })).toBe('2 of 5 weigh-ins');
+    expect(confidenceNote({ ...calibrating, weighIns: 2, days: 2 })).toBe('2 of 5 days logged');
     expect(confidenceNote({ ...calibrating, weighIns: 5, days: 3 })).toBe('Day 3 of 7');
   });
 

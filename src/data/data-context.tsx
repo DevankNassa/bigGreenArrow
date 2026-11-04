@@ -3,7 +3,8 @@ import { createContext, use, useEffect, useState, type ReactNode } from 'react';
 
 import type { WeighIn } from '@/engine';
 
-import { getPreferences, setPreference, type Preferences } from './preferences';
+import { deleteAllData } from './db';
+import { DEFAULT_PREFERENCES, getPreferences, setPreference, type Preferences } from './preferences';
 import { deleteWeighIn, insertWeighIn, listWeighIns, updateWeighIn } from './weigh-ins';
 
 interface Data {
@@ -13,6 +14,9 @@ interface Data {
   updateWeighIn: (w: WeighIn) => Promise<void>;
   deleteWeighIn: (id: string) => Promise<void>;
   setPreference: <K extends keyof Preferences>(key: K, value: Preferences[K]) => Promise<void>;
+  /** Several preferences in one go, e.g. when finishing onboarding or saving Settings. */
+  setPreferences: (values: Partial<Preferences>) => Promise<void>;
+  deleteAllData: () => Promise<void>;
 }
 
 type Loaded = Pick<Data, 'weighIns' | 'preferences'>;
@@ -58,6 +62,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     async setPreference(key, value) {
       await setPreference(db, key, value);
       update((d) => ({ ...d, preferences: { ...d.preferences, [key]: value } }));
+    },
+    async setPreferences(values) {
+      for (const [key, value] of Object.entries(values) as [keyof Preferences, never][]) {
+        await setPreference(db, key, value);
+      }
+      update((d) => ({ ...d, preferences: { ...d.preferences, ...values } }));
+    },
+    async deleteAllData() {
+      await deleteAllData(db);
+      setLoaded({ weighIns: [], preferences: DEFAULT_PREFERENCES });
     },
   };
 

@@ -107,7 +107,7 @@ The arrow's state comes from **goal type + rate zone**.
 | Slow (wrong direction) | between the maintenance band and the **red threshold** on the wrong side |
 | Wrong way | beyond the **red threshold** on the wrong side |
 
-The **red threshold** is set by the user (Settings → Pace). By default it equals the user's optimal min, mirrored to the wrong side. A user who wants a stricter alarm can lower it, for example to 0.2% so that small gains on a cut show red sooner. A user who finds red too stressful can raise it. It can never be set below the maintenance band.
+The **red threshold** is set by the user (Settings → Arrow zones). By default it equals the user's optimal min, mirrored to the wrong side. A user who wants a stricter alarm can lower it, for example to 0.2% so that small gains on a cut show red sooner. A user who finds red too stressful can raise it. It can never be set below the maintenance band.
 
 **Color language** (the same for every goal):
 | Color | Meaning |
@@ -117,7 +117,7 @@ The **red threshold** is set by the user (Settings → Pace). By default it equa
 | ⚪ Gray dash | Flat |
 | 🟥 Light red | Wrong direction, but slow |
 | 🔴 Red | Wrong direction, clearly |
-| 🟠 Amber | Right direction, but too fast |
+| 🟠 Orange (warning) | Right direction, but too fast |
 
 The tables below use example ranges of 0.5–1.0% (lose) and 0.25–0.5% (gain). They are only examples; the user's values replace them.
 
@@ -128,8 +128,8 @@ The tables below use example ranges of 0.5–1.0% (lose) and 0.25–0.5% (gain).
 | +0.15 … +0.50 | **Slow gain (wrong way)** | 🟥 Light red arrow angled up |
 | −0.15 … +0.15 | **Maintenance** | ⚪ Gray dash ( — ) |
 | −0.50 … −0.15 | **Slow loss** | 🟩 Light green arrow angled down, no celebration |
-| −1.00 … −0.50 | **Optimal** | 🟢 **Big green arrow** pointing down, with celebration |
-| < −1.00 | **Too fast** | 🟠 Amber arrow pointing steeply down, with a warning |
+| −1.00 … −0.50 | **Optimal** | 🟢 **Big green arrow** pointing straight down, with celebration |
+| < −1.00 | **Too fast** | 🟠 Orange arrow pointing straight down, with a warning |
 
 #### Goal = `gain` (mirror of `lose`)
 | Rate (% BW / week) | State | Visual |
@@ -138,8 +138,8 @@ The tables below use example ranges of 0.5–1.0% (lose) and 0.25–0.5% (gain).
 | −0.25 … −0.15 | **Slow loss (wrong way)** | 🟥 Light red arrow angled down |
 | −0.15 … +0.15 | **Maintenance** | ⚪ Gray dash |
 | +0.15 … +0.25 | **Slow gain** | 🟩 Light green arrow angled up, no celebration |
-| +0.25 … +0.50 | **Optimal** | 🟢 **Big green arrow** pointing up, with celebration |
-| > +0.50 | **Too fast** | 🟠 Amber arrow pointing steeply up, with a warning |
+| +0.25 … +0.50 | **Optimal** | 🟢 **Big green arrow** pointing straight up, with celebration |
+| > +0.50 | **Too fast** | 🟠 Orange arrow pointing straight up, with a warning |
 
 #### Goal = `maintain`
 For `maintain`, "flat" is the goal, so the celebrating arrow points **sideways** (→) instead of showing a dash.
@@ -152,7 +152,7 @@ For `maintain`, "flat" is the goal, so the celebrating arrow points **sideways**
 | Trend outside band but moving back toward target | **Returning** | 🟩 Light green arrow angled toward target |
 
 ### 6.2 Arrow Angle
-The arrow always points to the right, like a trend line read left to right. Its **angle maps continuously to the rate**: horizontal (→) is flat, the optimal max sits at 60°, and the arrow points straight up or down at 1.5× the optimal max or faster. (For `maintain`, straight up or down is 1% BW/week.) A faster rate gives a steeper arrow, so the arrow carries information instead of being just a few fixed icons. The `maintain` goal's on-target arrow sits at or near horizontal.
+The arrow always points to the right, like a trend line read left to right. Its **angle maps continuously to the rate** up to the slowest optimal pace: horizontal (→) is flat, and it tilts until it points **straight down (−90°) for Optimal loss or straight up (+90°) for Optimal gain**. The whole optimal zone is vertical. **Too fast** stays vertical too; it is told apart by its orange warning color, not by angle. Wrong-way rates tilt on the same scale. (For `maintain`, straight up or down is 1% BW/week, and the on-target arrow sits at or near horizontal.)
 
 ### 6.3 Hysteresis (prevent flicker)
 When the rate sits near a zone boundary, the state could flip every day. Rules:
@@ -165,9 +165,14 @@ The arrow needs enough data before it can mean anything.
 - If the lookback window has fewer than 4 weigh-ins (sparse logging), show the arrow at reduced opacity with *"Low confidence: log more often"*.
 
 ### 6.5 Celebration
-- **Optimal / On target:** the arrow pulses, then a short burst of confetti or particles, plus a haptic "success" tap.
-- **Streak:** a counter of consecutive days in Optimal (for example, "🔥 12 days on pace"), or On target for `maintain` (for example, "🔥 40 days holding steady").
-- **Too fast:** never celebrated. Show a supportive message instead, such as *"You're losing faster than your 1%/week limit. Consider eating a bit more to protect muscle."* (the number shown is the user's own optimal max).
+- **Style:** Poster. The home screen's top block fills with the arrow's tone, and a flat white arrow sits on it. The headline is the state in heavy uppercase type (for example, "OPTIMAL LOSS."), and it stamps in word by word. Each beat has a haptic.
+- **Optimal loss: Noise Breaker.** The arrow drops in and slams a black "SCALE NOISE" slab twice. The first hit cracks it (medium tap). The second shatters it, and the halves fall off the bottom (heavy tap) with flat confetti. The headline stamps into the gap (two rigid taps), then a "success" notification plays.
+- **Optimal gain: Plateau Breaker.** The mirror image: the arrow punches up from below through a "PLATEAU" slab, and the pieces fly out of the top.
+- **On target (`maintain`):** the arrow slides in flat from the left, sticks with a wobble and throws confetti.
+- **Too fast: Brake.** Never celebrated. The arrow drops in hard and rattles while speed lines stream past (ticks). Then the block snaps from green to the orange warning color with a double blink (warning haptic), and the headline stamps in. No confetti and no streak. A supportive message follows, such as *"You're losing faster than your 1%/week limit. Consider eating a bit more to protect muscle."* (the number shown is the user's own optimal max).
+- **Other states:** the block fills and the arrow drops into place with a light tap.
+- **Reduced motion:** no slams, slabs or particles. Everything appears in place, and the success (or warning) haptic still plays.
+- **Streak:** a "Days on pace" row (or "Days holding steady" for `maintain`) whose number rolls over from yesterday's count once the rest of the screen has risen in.
 
 ## 7. Screens
 
@@ -175,17 +180,20 @@ The arrow needs enough data before it can mean anything.
 ```
 ┌─────────────────────────────┐
 │                             │
-│            ↘                │  ← the arrow (about 50% of screen)
-│        (big green)          │
+│ [HISTORY] [SETTINGS]   │    │  ← hero block in the arrow's tone (about half the screen)
+│                        ↓    │  ← flat white arrow
+│ OPTIMAL                     │
+│ LOSS.                       │  ← state as a stamped headline
+│ −0.70% a week. Right on pace│
+├─────────────────────────────┤
+│ 82.4 KG TREND               │  ← paper: big trend number
+│ ─────────────────────────── │
+│ Scale today        83.1 kg  │  ← de-emphasized rows between rules
+│ Per week          −0.58 kg  │
+│ Days on pace            12  │
+│ To reach 78 kg   ~9 weeks   │
 │                             │
-│     Trend: 82.4 kg          │
-│     −0.7% / week  ✓ Optimal │
-│                             │
-│   Today's scale: 83.1 kg    │  ← de-emphasized (smaller, gray)
-│   🔥 12 days on pace         │
-│   ~9 weeks to 78 kg          │
-│                             │
-│        [ + Log weight ]     │
+│      ( + Log weight )       │
 └─────────────────────────────┘
 ```
 - The scale weight is visually secondary on purpose.
@@ -209,7 +217,7 @@ The arrow needs enough data before it can mean anything.
 
 ### 7.4 History
 - A reverse-chronological list showing date, scale weight, trend at that point, and the difference from trend.
-- Swipe to edit or delete. All trend values after the edited date are recomputed.
+- Tap a row to edit it (weight, day, note), exclude it from the trend, or delete it (with confirmation). Swipe actions can be added later as a shortcut. All trend values after the edited date are recomputed.
 - Each entry shows a small source badge (manual, Apple Health, Health Connect, import). Entries that came from Health can be **excluded** but not edited, because Health owns that data.
 
 ### 7.5 Settings
@@ -219,8 +227,9 @@ The arrow needs enough data before it can mean anything.
 | | Target weight | (none) |
 | | Maintain band | ±1.5% |
 | **Pace** | Optimal range: min and max (% BW/week), set per goal type | chosen by user in onboarding |
+| **Arrow zones** | A vertical slider from +1.5% to −1.5% BW/week, with stage names on the left and a draggable tab at each cutoff on the right, in 0.05 steps. Lose and gain have five tabs: wrong way starts (the red threshold), the maintenance band's top and bottom (they move together), optimal starts (optimal min) and too fast starts (optimal max). Maintain has the two maintenance-band tabs | see below |
 | | Maintenance band (the dash zone) | ±0.15% BW/week |
-| | Red threshold: how far the trend can move the wrong way before the arrow turns from light red to red (slider from the maintenance band up to 2.0, in 0.05 steps) | same as the optimal min |
+| | Red threshold: how far the trend can move the wrong way before the arrow turns from light red to red | same as the optimal min |
 | | Rate display unit | % BW/week |
 | **Trend** | Smoothing method | EMA |
 | | EMA α or SMA window | 0.10 / 7 days |
@@ -231,13 +240,17 @@ The arrow needs enough data before it can mean anything.
 | | Celebrations (animation and haptics) | on |
 | **Reminders** | Daily weigh-in reminder | on, 07:00 |
 | **Data** | Import CSV, Export CSV, Delete all data | (none) |
+
+Settings changes are collected in a draft and saved with a **Save changes** button, so goal validation and the over-1% warning (§7.5.2) run once, on save. The warning comes back only when the fastest pace or the goal type changed.
+
+**Built so far:** Goal, Pace (preset chips), Arrow zones (vertical slider), Trend, Units, Delete all data. **Still to come:** Hide scale weight and Celebrations (after the arrow animation work), Reminders, Health, CSV import/export.
 | **Health** | Read weight from Apple Health / Health Connect | on if permission granted |
 | | Write manual entries back to Health | on |
 | | Re-import full history | (action) |
 
 #### 7.5.1 Choosing a pace
 The user sets their own optimal range; the app does not impose a default. The pace picker has:
-- **Two sliders** (min and max, in % BW/week) on a scale from 0 to 2.0, in 0.05 steps.
+- **The arrow-zones slider** (§7.5) sets the slowest and fastest optimal pace with its "optimal starts" and "too fast starts" tabs, in 0.05 steps. Each tab is an adjustable control for screen readers. Onboarding uses the preset chips only.
 - **Live translation** next to the sliders, in the user's own numbers. Example: *"At 82 kg, that's 0.41–0.82 kg per week"* and *"~9–18 weeks to 78 kg"*.
 - **Optional quick-pick chips** that only fill in the sliders and can be adjusted afterward. They are labeled *Gentle* (lose 0.25–0.5 / gain 0.15–0.25), *Moderate* (lose 0.5–1.0 / gain 0.25–0.5), and *Fast* (lose 0.75–1.25 / gain 0.5–0.75).
 
@@ -251,12 +264,16 @@ If the optimal **max** is set above **1.0% BW/week in either direction** (lose o
 - After the user confirms, a small amber caution tag ("Above 1%/week") stays next to the pace in Settings and on the chart's optimal corridor. The app does not keep nagging after that.
 - The warning comes back if the user changes the pace again.
 
-### 7.6 Onboarding (5 short screens)
-1. "The scale lies day to day. The trend doesn't." (short explanation with an animated example)
-2. **Connect Health.** Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
-3. Choose a goal (lose / gain / maintain) and optionally a target.
-4. **Choose a pace** (see §7.5.1), with the over-1% warning if it applies (§7.5.2). Skipped for `maintain`, which asks for a band instead.
-5. Units, plus current weight if Health returned nothing (this becomes the first weigh-in). Then turn on reminders. Smart-scale users get a "remind me only if no weigh-in synced by 10:00" option.
+### 7.6 Onboarding (short steps)
+Units come before the goal, because the target weight is typed in the user's unit.
+1. "The scale lies day to day. The trend doesn't." (short explanation, plus the "not medical advice" note)
+2. **Connect Health** *(once Health sync exists)*. Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
+3. **Units**, plus current weight if there is no data yet (optional; it becomes the first weigh-in).
+4. **Goal** (lose / gain / maintain) and target weight (optional, but required for `maintain`). A hint appears if the target is on the wrong side of the current weight.
+5. **Pace** (see §7.5.1), with the over-1% warning if it applies (§7.5.2). For `maintain`, the band was already set on the goal step, so this step only explains what "steady" means.
+6. **Reminders** *(once reminders exist)*. Smart-scale users get a "remind me only if no weigh-in synced by 10:00" option.
+
+The home screen redirects to onboarding until it is finished.
 
 ## 8. Health Integration
 
@@ -419,8 +436,13 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-10-21 | Flat (dash) zone is ±0.15% BW/week by default and adjustable |
 | 2026-10-21 | Red threshold (light red → red) is set by the user. Default: the optimal min, mirrored |
 | 2026-10-21 | Arrow angle: optimal max at 60°, vertical at 1.5× optimal max. Time-to-target hidden while flat |
+| 2026-11-03 | Design language: Poster (state-colored hero block, flat white arrow, Archivo Black headlines, paper and ink) |
+| 2026-11-03 | Arrow angle: vertical from the optimal min, so Optimal points straight down or up; Too fast stays vertical and turns orange. Replaces the 60° rule |
+| 2026-11-03 | Celebrations: Noise Breaker (loss), Plateau Breaker (gain), stamp (maintain); Brake warning for too fast |
+| 2026-11-03 | Arrow zones edited with a vertical multi-tab slider in Settings |
 | 2026-10-21 | Storage: SQLite (`expo-sqlite`), schema versioned with `PRAGMA user_version`. Preferences stored as JSON values per key |
+| 2026-10-21 | Onboarding order: intro → units → goal → pace. Pace uses steppers with preset chips instead of sliders |
 | 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
 
 ## 17. Open Questions
-1. **Optimal / On target celebration animation:** the owner wants to redesign it (deferred, 2026-10-21). The current pulse in `src/components/trend-arrow.tsx` and the confetti described in §6.5 are placeholders until then.
+1. **Optimal / On target celebration animation:** a first Duolingo-style pass is in (§6.5, 2026-10-21). It still needs tuning on a real device, especially the haptic feel on Android. It is drawn with plain Views; moving it to Skia (§13) is still open.

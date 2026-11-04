@@ -21,6 +21,18 @@ export function atTimeOf(date: IsoDate, now: Date = new Date()): Date {
   return at;
 }
 
+/** "Today", "Yesterday", or a short date such as "Mon, 19 Oct". */
+export function dayLabel(date: IsoDate, today: IsoDate = localIsoDate()): string {
+  if (date === today) return 'Today';
+  if (date === addDays(today, -1)) return 'Yesterday';
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
 /** ISO 8601 timestamp in local time with its UTC offset, as the engine expects. */
 export function localIsoTimestamp(d: Date = new Date()): string {
   const offsetMin = -d.getTimezoneOffset();
