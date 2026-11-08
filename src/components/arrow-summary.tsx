@@ -8,18 +8,24 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
+import { MiniFlame } from '@/components/hero-fx';
 import { PosterHero, heroSettleMs, type HeroMotion } from '@/components/poster-hero';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, Type } from '@/constants/theme';
 import { fromKg, type Analysis, type ArrowReading, type Goal, type WeightUnit } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
-import { confidenceNote, stateLabel } from '@/lib/arrow-labels';
+import { confidenceNote, heroAdvice, heroChip, heroHeadline, heroSublineTail } from '@/lib/arrow-labels';
 import { formatWeight, formatWeightValue } from '@/lib/weight-input';
 
 function signed(n: number, digits: number): string {
   const text = Math.abs(n).toFixed(digits);
   if (Number(text) === 0) return text;
   return `${n > 0 ? '+' : '−'}${text}`;
+}
+
+/** A pace as the user typed it: 0.5 → "0.5", 1 → "1.0", 0.25 → "0.25". */
+function pace(n: number): string {
+  return Number.isInteger(n) ? n.toFixed(1) : String(Number(n.toFixed(2)));
 }
 
 /** Which hero motion a reading gets (SPEC §6.5). */
@@ -37,48 +43,95 @@ export function ArrowSummary({
   goal,
   unit,
   topInset = 0,
-  actions,
+  nav,
 }: {
   analysis: Analysis;
   goal: Goal;
   unit: WeightUnit;
   /** Safe-area inset the hero extends under. */
   topInset?: number;
-  actions?: ReactNode;
+  nav?: { onHistory?: () => void; onSettings: () => void };
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const { arrow, latest, confidence } = analysis;
-  // A rate from a handful of points is noise; show it only once the arrow is live.
   const rate = arrow ? latest?.rate : null;
-  const label = arrow ? stateLabel(arrow.state, goal.type) : 'Calibrating';
+  const state = arrow?.state;
+  const celebrating = arrow?.celebrating ?? false;
+  const label = arrow ? heroHeadline(arrow.state, goal.type) : 'Calibrating';
   const note = confidenceNote(confidence);
   const motion = heroMotion(arrow, goal);
   const rise = reduceMotion ? 0 : heroSettleMs(motion);
-  const tooFast = arrow?.state === 'too_fast';
+  const pct = rate?.pctPerWeek ?? 0;
+  const toward = goal.type === 'lose' ? '−' : '+';
+  const target = goal.targetKg !== undefined ? formatWeight(goal.targetKg, unit) : null;
 
-  const subline = !rate
-    ? null
-    : `${signed(rate.pctPerWeek, 2)}% a week.${
-        tooFast ? ` Above your ${goal.optimalMaxPct}% limit.` : arrow?.celebrating ? ' Right on pace.' : ''
-      }`;
+  const subline =
+    !rate || !state || celebrating
+      ? null
+      : `${signed(pct, Math.abs(pct) < 0.1 ? 2 : 1)}% a week. ${heroSublineTail(state, goal, pct)}`.trim();
+  const rateLine =
+    rate && celebrating
+      ? {
+          rate: `${signed(pct, 2)}%`,
+          detail:
+            goal.type === 'maintain'
+              ? target
+                ? `band ${target} ± ${pace(goal.targetBandPct)}%`
+                : `steady within ±${pace(goal.flatBandPct)}%`
+              : `your zone ${toward}${pace(goal.optimalMinPct)} to ${toward}${pace(goal.optimalMaxPct)}`,
+        }
+      : null;
 
-  const rows: { label: string; value: ReactNode }[] = [];
-  if (latest) rows.push({ label: 'Scale today', value: formatWeight(latest.weightKg, unit) });
-  if (rate) rows.push({ label: 'Per week', value: `${signed(fromKg(rate.kgPerWeek, unit), 2)} ${unit}` });
-  if (tooFast) rows.push({ label: 'Your limit', value: `${goal.type === 'lose' ? '−' : '+'}${goal.optimalMaxPct}% / week` });
-  if (arrow?.celebrating) {
-    rows.push({
-      label: goal.type === 'maintain' ? 'Days holding steady' : 'Days on pace',
-      value: <Roll from={Math.max(0, arrow.streakDays - 1)} to={arrow.streakDays} delay={rise + 700} animate={!reduceMotion} />,
-    });
+  const streakValue = arrow && (
+    <View style={styles.streak}>
+      <MiniFlame animate={!reduceMotion} />
+      <Roll from={Math.max(0, arrow.streakDays - 1)} to={arrow.streakDays} delay={rise + 700} animate={!reduceMotion} />
+    </View>
+  );
+  const toReach =
+    analysis.daysToTarget !== null && analysis.daysToTarget > 0 && target
+      ? { label: `To reach ${target}`, value: `~${Math.ceil(analysis.daysToTarget / 7)} weeks` }
+      : null;
+  const optimalStarts = { label: 'Optimal starts at', value: `${toward}${pace(goal.optimalMinPct)}% / week` };
+  const targetRow = target ? { label: 'Target', value: `${target} ± ${pace(goal.targetBandPct)}%` } : null;
+
+  const rows: ({ label: string; value: ReactNode } | null | undefined | false)[] = [
+    latest && { label: 'Scale today', value: formatWeight(latest.weightKg, unit) },
+  ];
+  switch (state) {
+    case 'optimal':
+      rows.push({ label: 'Days on pace', value: streakValue }, toReach);
+      break;
+    case 'on_target':
+      rows.push({ label: 'Days holding steady', value: streakValue }, targetRow);
+      break;
+    case 'too_fast':
+      rows.push({ label: 'Your limit', value: `${toward}${pace(goal.optimalMaxPct)}% / week` });
+      break;
+    case 'slow_right':
+      rows.push(optimalStarts, toReach);
+      break;
+    case 'flat':
+      rows.push({ label: 'Days flat', value: String(arrow!.daysInState) }, optimalStarts);
+      break;
+    case 'slow_wrong':
+    case 'wrong_way': {
+      const from = analysis.series.find((p) => p.day >= latest!.day - 14) ?? latest!;
+      rows.push(
+        { label: 'Last 14 days', value: `${signed(fromKg(latest!.trendKg - from.trendKg, unit), 1)} ${unit}` },
+        { label: 'Your goal', value: `${goal.type === 'lose' ? 'Lose' : 'Gain'}${target ? ` to ${target}` : ''}` },
+      );
+      break;
+    }
+    case 'drifting':
+    case 'off_target':
+    case 'returning':
+      rows.push(targetRow);
+      break;
   }
-  if (analysis.daysToTarget !== null && analysis.daysToTarget > 0 && goal.targetKg) {
-    rows.push({
-      label: `To reach ${formatWeight(goal.targetKg, unit)}`,
-      value: `~${Math.ceil(analysis.daysToTarget / 7)} weeks`,
-    });
-  }
+  const shown = rows.filter((r): r is { label: string; value: ReactNode } => !!r);
+  const advice = state ? heroAdvice(state, goal) : null;
 
   return (
     <>
@@ -86,13 +139,15 @@ export function ArrowSummary({
         key={arrow?.state ?? 'calibrating'}
         tone={arrow?.tone ?? 'gray'}
         angleDeg={arrow?.angleDeg ?? 0}
-        dash={arrow?.state === 'flat'}
-        dimmed={confidence.level !== 'ok'}
+        dimmed={confidence.level === 'low' || confidence.level === 'calibrating'}
+        celebrating={celebrating}
+        chip={arrow && !celebrating ? heroChip(arrow.state, goal.type, pct) : null}
         headline={label}
         subline={subline}
+        rateLine={rateLine}
         motion={motion}
         topInset={topInset}
-        actions={actions}
+        nav={nav}
         accessibilityLabel={rate ? `${label}, ${signed(rate.pctPerWeek, 1)} percent per week` : label}
       />
 
@@ -110,9 +165,9 @@ export function ArrowSummary({
           </Rise>
         )}
 
-        {rows.length > 0 && (
+        {shown.length > 0 && (
           <View style={[styles.rows, { borderBottomColor: theme.text }]}>
-            {rows.map((r, i) => (
+            {shown.map((r, i) => (
               <Rise key={r.label} delay={rise + 150 * (i + 1)} animate={!reduceMotion}>
                 <View style={[styles.row, { borderTopColor: theme.text }]}>
                   <ThemedText type="smallBold" style={styles.rowLabel}>
@@ -129,14 +184,9 @@ export function ArrowSummary({
           </View>
         )}
 
-        {tooFast && (
-          <Rise delay={rise + 150 * (rows.length + 1)} animate={!reduceMotion}>
-            <ThemedText>
-              You&apos;re {goal.type === 'lose' ? 'losing' : 'gaining'} faster than your {goal.optimalMaxPct}%/week limit.{' '}
-              {goal.type === 'lose'
-                ? 'Consider eating a bit more to protect muscle.'
-                : 'Consider easing off a little so the gain stays lean.'}
-            </ThemedText>
+        {advice && (
+          <Rise delay={rise + 150 * (shown.length + 1)} animate={!reduceMotion}>
+            <ThemedText style={styles.advice}>{advice}</ThemedText>
           </Rise>
         )}
       </View>
@@ -232,6 +282,16 @@ const styles = StyleSheet.create({
   rowValue: {
     fontFamily: Type.display,
     fontSize: 17,
+  },
+  streak: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  advice: {
+    fontFamily: Type.medium,
+    fontSize: 15,
+    lineHeight: 22,
   },
   roll: {
     height: ROLL_LINE,

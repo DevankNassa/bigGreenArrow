@@ -82,6 +82,8 @@ rate_%bw_wk   = (slope_per_day × 7) / current_trend × 100
 Default lookback window = 14 days (setting: 7 / 14 / 21 / 28)
 ```
 
+**Before the lookback window has filled** (the first 14 days), the rate comes from a straight line fitted to the raw weigh-ins so far, with its slope pulled toward flat by `Sxx / (Sxx + 7)` (Sxx = spread of the days, in day²). Two days in a row keep about 7% of the raw slope, a week of daily weigh-ins about 80%, two weeks about 97%. One noisy morning can't swing the arrow, but a real change shows from day 2. The EMA trend starts on that same line, at the lag an EMA settles into ((1 − α) / α days behind), rather than flat at the first weight. That keeps the hand-over to the trend's own slope smooth, and stops the rate reading low for the first few weeks while the EMA catches up.
+
 ### 5.4 Goal
 | Goal type | Meaning |
 |---|---|
@@ -161,17 +163,20 @@ When the rate sits near a zone boundary, the state could flip every day. Rules:
 
 ### 6.4 Calibrating State
 The arrow needs enough data before it can mean anything.
-- With fewer than **5 weigh-ins** or less than **7 days** of history, show a **gray outlined arrow** labeled *"Calibrating: 3 of 5 weigh-ins"*.
+- **Day 1** (one weigh-in): a dimmed gray arrow headed *"Calibrating"*, with *"Log again tomorrow and your arrow goes live."*
+- **From day 2** the arrow is live, using the early rate (§5.3). Until there are **5 weigh-ins over 7 days** a note reads *"Early read, day 2 of 7. The arrow firms up as you log."* The arrow itself is not dimmed, and celebrations play.
 - If the lookback window has fewer than 4 weigh-ins (sparse logging), show the arrow at reduced opacity with *"Low confidence: log more often"*.
 
 ### 6.5 Celebration
-- **Style:** Poster. The home screen's top block fills with the arrow's tone, and a flat white arrow sits on it. The headline is the state in heavy uppercase type (for example, "OPTIMAL LOSS."), and it stamps in word by word. Each beat has a haptic.
+- **Style:** Poster. The home screen's top block fills with the arrow's tone, and a flat arrow sits on it. The headline is the state in heavy uppercase type (for example, "OPTIMAL LOSS."), and it stamps in word by word. Each beat has a haptic.
+- **On fire (Optimal and On target):** the block is ink (#111111) and the arrow is bright green. Once the entrance motion ends, the arrow catches fire: a cel-style flame trail behind its tail (three hand-drawn frames at ~8 fps), sparks thrown back off it, speed streaks rushing past the block the other way, and a small 3 px jitter. The headline ends in a green period. Under it, a ruled line shows the rate, "a week", and the user's zone (or band, for `maintain`). The streak row has a flickering flame.
+- **Other states:** a pill above the headline names the situation, with an icon (Too slow, Ease off, Wrong way, Maintenance…). A subline gives the rate and a short verdict, and a plain sentence under the numbers says what it means. The flat state shows a gray arrow pointing right, headed "Holding steady". Slow in the right direction is the one light block: pale green with an ink arrow and ink type.
 - **Optimal loss: Noise Breaker.** The arrow drops in and slams a black "SCALE NOISE" slab twice. The first hit cracks it (medium tap). The second shatters it, and the halves fall off the bottom (heavy tap) with flat confetti. The headline stamps into the gap (two rigid taps), then a "success" notification plays.
 - **Optimal gain: Plateau Breaker.** The mirror image: the arrow punches up from below through a "PLATEAU" slab, and the pieces fly out of the top.
 - **On target (`maintain`):** the arrow slides in flat from the left, sticks with a wobble and throws confetti.
 - **Too fast: Brake.** Never celebrated. The arrow drops in hard and rattles while speed lines stream past (ticks). Then the block snaps from green to the orange warning color with a double blink (warning haptic), and the headline stamps in. No confetti and no streak. A supportive message follows, such as *"You're losing faster than your 1%/week limit. Consider eating a bit more to protect muscle."* (the number shown is the user's own optimal max).
 - **Other states:** the block fills and the arrow drops into place with a light tap.
-- **Reduced motion:** no slams, slabs or particles. Everything appears in place, and the success (or warning) haptic still plays.
+- **Reduced motion:** no slams, slabs, particles or streaks; the fire holds still on one frame. Everything appears in place, and the success (or warning) haptic still plays.
 - **Streak:** a "Days on pace" row (or "Days holding steady" for `maintain`) whose number rolls over from yesterday's count once the rest of the screen has risen in.
 
 ## 7. Screens
@@ -180,16 +185,16 @@ The arrow needs enough data before it can mean anything.
 ```
 ┌─────────────────────────────┐
 │                             │
-│ [HISTORY] [SETTINGS]   │    │  ← hero block in the arrow's tone (about half the screen)
-│                        ↓    │  ← flat white arrow
+│ (▮▮▮)                (⚙)    │  ← round History and Settings buttons
+│                        ↓    │  ← green arrow riding a fire trail (ink block when on pace)
 │ OPTIMAL                     │
 │ LOSS.                       │  ← state as a stamped headline
-│ −0.70% a week. Right on pace│
+│ ─────────────────────────── │
+│ −0.70% a week  zone −0.5…−1 │
 ├─────────────────────────────┤
 │ 82.4 KG TREND               │  ← paper: big trend number
 │ ─────────────────────────── │
 │ Scale today        83.1 kg  │  ← de-emphasized rows between rules
-│ Per week          −0.58 kg  │
 │ Days on pace            12  │
 │ To reach 78 kg   ~9 weeks   │
 │                             │
@@ -440,9 +445,11 @@ The app has no analytics, so these can only be measured through opt-in feedback 
 | 2026-11-03 | Arrow angle: vertical from the optimal min, so Optimal points straight down or up; Too fast stays vertical and turns orange. Replaces the 60° rule |
 | 2026-11-03 | Celebrations: Noise Breaker (loss), Plateau Breaker (gain), stamp (maintain); Brake warning for too fast |
 | 2026-11-03 | Arrow zones edited with a vertical multi-tab slider in Settings |
+| 2026-11-09 | Optimal and On target use the "on fire" hero: ink block, green arrow on a cel-style fire trail. Other states get a chip, a subline and a plain-language sentence |
+| 2026-11-09 | Faster calibration: the arrow is live from day 2 using a shrunk early rate; "early read" until 5 weigh-ins over 7 days. Replaces the 5-weigh-ins/7-days calibration gate |
 | 2026-10-21 | Storage: SQLite (`expo-sqlite`), schema versioned with `PRAGMA user_version`. Preferences stored as JSON values per key |
 | 2026-10-21 | Onboarding order: intro → units → goal → pace. Pace uses steppers with preset chips instead of sliders |
-| 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise |
+| 2026-10-21 | The rate is hidden while calibrating; a rate from a few points is noise (calibrating is now day 1 only, see 2026-11-09) |
 
 ## 17. Open Questions
 1. **Optimal / On target celebration animation:** a first Duolingo-style pass is in (§6.5, 2026-10-21). It still needs tuning on a real device, especially the haptic feel on Android. It is drawn with plain Views; moving it to Skia (§13) is still open.
