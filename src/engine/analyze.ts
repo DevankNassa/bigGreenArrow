@@ -1,14 +1,16 @@
 import { STATE_TONE, arrowAngle, isCelebrating, resolveStates } from './arrow';
 import {
-  CALIBRATION_MIN_DAYS,
   CALIBRATION_MIN_WEIGH_INS,
+  EARLY_RATE_SHRINK,
+  EARLY_UNTIL_DAYS,
+  EARLY_UNTIL_WEIGH_INS,
   GAP_DAYS,
   GAP_RECOVERY_WEIGH_INS,
   LOW_CONFIDENCE_MIN_POINTS,
 } from './constants';
 import { dayNumber, toDailyWeights } from './daily';
 import { daysToTarget } from './goal';
-import { computeRate, computeTrend } from './trend';
+import { computeRate, computeTrend, fitEarlyLine, lineRate } from './trend';
 import type {
   ArrowState,
   ArrowTone,
@@ -21,13 +23,10 @@ import type {
 } from './types';
 
 export type Confidence =
-  | {
-      level: 'calibrating';
-      weighIns: number;
-      weighInsNeeded: number;
-      days: number;
-      daysNeeded: number;
-    }
+  /** Not enough weigh-ins for any arrow yet. */
+  | { level: 'calibrating'; weighIns: number; weighInsNeeded: number }
+  /** The arrow is live, from a rate that firms up over the first week. */
+  | { level: 'early'; weighIns: number; weighInsNeeded: number; days: number; daysNeeded: number }
   | { level: 'low'; reason: 'stale' | 'gap' | 'sparse' }
   | { level: 'ok' };
 
@@ -46,6 +45,8 @@ export interface ArrowReading {
   since: IsoDate;
   /** Days in the current celebrating state, counted to the latest weigh-in; 0 otherwise. */
   streakDays: number;
+  /** Days in the current state, celebrating or not, counted to the latest weigh-in. */
+  daysInState: number;
 }
 
 export interface Analysis {
@@ -54,7 +55,7 @@ export interface Analysis {
   confidence: Confidence;
   /** Null while calibrating. */
   arrow: ArrowReading | null;
-  /** Null while calibrating, since a rate from a few points is noise. */
+  /** Null while calibrating. */
   daysToTarget: number | null;
 }
 
@@ -68,8 +69,22 @@ export function analyze(
   settings: TrendSettings,
   asOf: IsoDate,
 ): Analysis {
-  const trend = computeTrend(toDailyWeights(weighIns, settings.sameDayRule), settings.smoothing);
-  const rates = trend.map((_, i) => computeRate(trend, i, settings.slopeLookbackDays));
+  const daily = toDailyWeights(weighIns, settings.sameDayRule);
+  const lookback = settings.slopeLookbackDays;
+  // Until the lookback window has filled, the rate comes from a line fitted to
+  // the raw weights (pulled toward flat while there are few of them), so the
+  // arrow can go live on day 2. The trend starts along that same line, which
+  // keeps the hand-over to the trend's own slope smooth.
+  const inFirstWindow = (i: number) => daily[i].day - daily[0].day < lookback;
+  let windowEnd = 0;
+  while (windowEnd + 1 < daily.length && inFirstWindow(windowEnd + 1)) windowEnd++;
+  const seed = daily.length ? fitEarlyLine(daily, windowEnd, EARLY_RATE_SHRINK) : null;
+  const trend = computeTrend(daily, settings.smoothing, seed);
+  const rates = trend.map((p, i) => {
+    if (!inFirstWindow(i)) return computeRate(trend, i, lookback);
+    const line = fitEarlyLine(daily, i, EARLY_RATE_SHRINK);
+    return line && lineRate(line, p.trendKg);
+  });
 
   const firstWithRate = rates.findIndex((r) => r !== null);
   const states: (ArrowState | null)[] = trend.map(() => null);
@@ -121,24 +136,29 @@ function readArrow(
     celebrating,
     since: since.date,
     streakDays: celebrating ? latest.day - since.day + 1 : 0,
+    daysInState: latest.day - since.day + 1,
   };
 }
 
 function assessConfidence(series: AnalyzedPoint[], asOf: IsoDate): Confidence {
   const first = series[0];
   const latest = series[series.length - 1];
-  const days = latest ? latest.day - first.day + 1 : 0;
-  if (series.length < CALIBRATION_MIN_WEIGH_INS || days < CALIBRATION_MIN_DAYS) {
-    return {
-      level: 'calibrating',
-      weighIns: series.length,
-      weighInsNeeded: CALIBRATION_MIN_WEIGH_INS,
-      days,
-      daysNeeded: CALIBRATION_MIN_DAYS,
-    };
+  if (series.length < CALIBRATION_MIN_WEIGH_INS) {
+    return { level: 'calibrating', weighIns: series.length, weighInsNeeded: CALIBRATION_MIN_WEIGH_INS };
   }
 
   if (dayNumber(asOf) - latest.day > GAP_DAYS) return { level: 'low', reason: 'stale' };
+
+  const days = latest.day - first.day + 1;
+  if (series.length < EARLY_UNTIL_WEIGH_INS || days < EARLY_UNTIL_DAYS) {
+    return {
+      level: 'early',
+      weighIns: series.length,
+      weighInsNeeded: EARLY_UNTIL_WEIGH_INS,
+      days,
+      daysNeeded: EARLY_UNTIL_DAYS,
+    };
+  }
 
   // A gap inside the last few weigh-ins means too few readings since coming back.
   const recent = series.slice(-GAP_RECOVERY_WEIGH_INS);

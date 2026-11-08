@@ -30,9 +30,11 @@ describe('historyRows', () => {
   it("pairs each weigh-in with its day's trend", () => {
     const tue = rows.find((r) => r.weighIn.id === 'tue')!;
     const tuePm = rows.find((r) => r.weighIn.id === 'tue-pm')!;
-    expect(tue.trendKg).toBeCloseTo(82.9, 10); // 83 + 0.1 × (82 − 83), first of the day
+    // First of the day. The trend starts on the early line through 83 → 82
+    // (slope −1 kg/day pulled to −1/15), 9 days back: 83.133; then 83.133 + 0.1 × (82 − 83.133).
+    expect(tue.trendKg).toBeCloseTo(83.02, 10);
     expect(tuePm.trendKg).toBe(tue.trendKg);
-    expect(tuePm.diffKg).toBeCloseTo(0.6, 10);
+    expect(tuePm.diffKg).toBeCloseTo(83.5 - 83.02, 10);
   });
 
   it('shows no trend for excluded weigh-ins', () => {
