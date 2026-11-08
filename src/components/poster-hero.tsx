@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -14,10 +14,22 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { CelebrationBurst } from '@/components/celebration-burst';
+import {
+  BarsIcon,
+  ChipGlyph,
+  FireTrail,
+  SlidersIcon,
+  Sparks,
+  Streaks,
+  useFxClock,
+  useIgnite,
+  type StreakDirection,
+} from '@/components/hero-fx';
 import { ArrowShape } from '@/components/trend-arrow';
-import { ToneColors, Type } from '@/constants/theme';
+import { HeroAccent, HeroColors, ToneColors, Type } from '@/constants/theme';
 import type { ArrowTone } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
+import type { ChipIcon } from '@/lib/arrow-labels';
 import { hapticTimeline, type HapticBeat } from '@/lib/haptics';
 
 /**
@@ -37,6 +49,9 @@ const SNAP = 1500;
 
 /** When the headline starts stamping in: after the slab breaks, the arrow sticks or the color snaps. */
 const STAMP_AT: Record<HeroMotion, number> = { enter: 300, smash_down: 1300, smash_up: 1300, stamp: 700, brake: 1700 };
+
+/** When a celebrating hero's fire catches: once the arrow has come to rest. */
+const IGNITE_AT: Record<HeroMotion, number> = { enter: 600, smash_down: 1350, smash_up: 1350, stamp: 800, brake: 0 };
 
 /** When the hero's headline has landed; the stats below rise in from here. */
 export function heroSettleMs(motion: HeroMotion): number {
@@ -76,8 +91,9 @@ const HAPTICS: Record<HeroMotion, readonly (readonly [number, HapticBeat])[]> = 
   ],
 };
 
-const SHADOW = 'rgba(0,0,0,0.28)';
-const SLAB_COLOR = '#111111';
+/** The slab is paper on the ink block, so it reads against the fire hero. */
+const SLAB_COLOR = '#F4F1EA';
+const SLAB_INK = '#111111';
 
 type PosterHeroProps = {
   tone: ArrowTone;
@@ -87,39 +103,56 @@ type PosterHeroProps = {
   dash?: boolean;
   /** Faded arrow while calibrating or on low confidence. */
   dimmed?: boolean;
+  /**
+   * Optimal / On target: the ink block, with the arrow riding a fire trail and
+   * a rate line under the headline instead of a chip and subline.
+   */
+  celebrating?: boolean;
+  /** The pill above the headline. */
+  chip?: { icon: ChipIcon; label: string } | null;
   headline: string;
   subline?: string | null;
+  /** Celebrating only: the rate, e.g. "−0.70%", and what to compare it with on the right. */
+  rateLine?: { rate: string; detail: string } | null;
   motion: HeroMotion;
   /** Safe-area inset the block extends under. */
   topInset: number;
-  /** Buttons along the top of the block. */
-  actions?: ReactNode;
+  /** The round buttons in the block's top corners. History is left out when there's nothing to show. */
+  nav?: { onHistory?: () => void; onSettings: () => void };
   accessibilityLabel: string;
 };
 
 /**
  * The Poster home screen's hero: a full-bleed block in the arrow's tone with a
- * flat white arrow and a stamped uppercase headline. Mount it with a `key`
- * that changes with the state to replay its motion.
+ * flat arrow and a stamped uppercase headline. Mount it with a `key` that
+ * changes with the state to replay its motion.
  */
 export function PosterHero({
   tone,
   angleDeg,
   dash = false,
   dimmed = false,
+  celebrating = false,
+  chip,
   headline,
   subline,
+  rateLine,
   motion,
   topInset,
-  actions,
+  nav,
   accessibilityLabel,
 }: PosterHeroProps) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
   const animate = !reduceMotion;
   const { width, height } = useWindowDimensions();
-  const box = heroLayout(width, height, topInset);
+  const box = heroLayout(width, height, topInset, celebrating, angleDeg);
   const { S, cx, arrowTop, heroH } = box;
+  const palette = HeroColors[tone];
+  const onFire = celebrating && !dimmed;
+  const clock = useFxClock(onFire && animate);
+  const ignite = useIgnite(IGNITE_AT[motion], onFire && animate);
+  const streakDirection: StreakDirection = angleDeg < -45 ? 'up' : angleDeg > 45 ? 'down' : 'left';
 
   const vertical = motion === 'smash_down' || motion === 'brake' ? 1 : motion === 'smash_up' ? -1 : 0;
   const hitDown = box.slabDownTop - box.tipDown;
@@ -248,6 +281,13 @@ export function PosterHero({
   ]);
 
   const floodStyle = useAnimatedStyle(() => ({ transform: [{ translateY: flood.get() }] }));
+  const streaksStyle = useAnimatedStyle(() => ({ opacity: ignite.get() }));
+  // A cel-style jitter once the fire is lit: 3 px every other frame.
+  const bobStyle = useAnimatedStyle(() => {
+    const on = onFire && animate && ignite.get() >= 1 && Math.floor(clock.get() / 120) % 2 === 1;
+    const by = on ? (3 * S) / 190 : 0;
+    return { transform: streakDirection === 'left' ? [{ translateX: by }] : [{ translateY: by }] };
+  });
   const warnStyle = useAnimatedStyle(() => ({ opacity: warn.get() }));
   const speedStyle = useAnimatedStyle(() => ({ opacity: speed.get() }));
   const arrowStyle = useAnimatedStyle(() => ({
@@ -260,28 +300,30 @@ export function PosterHero({
     ],
   }));
 
-  const toneColor = ToneColors[tone];
   const smash = animate && (motion === 'smash_down' || motion === 'smash_up');
   const impactY = motion === 'smash_up' ? box.slabUpTop + SLAB_UP_H : box.slabDownTop;
   const lines = headline.toUpperCase().split(' ');
-  lines[lines.length - 1] += '.';
-  const headlineSize = Math.min(56, (width - 48) / (Math.max(...lines.map((l) => l.length)) * 0.8));
+  const headlineSize = Math.min(celebrating ? 60 : 56, (width - 48) / ((Math.max(...lines.map((l) => l.length)) + 1) * 0.8));
+  const lineHeight = headlineSize * (celebrating ? 0.86 : 0.92);
+  const textColor = { color: palette.text };
   const stampAt = animate ? STAMP_AT[motion] : 0;
 
   return (
-    <View
-      style={[styles.hero, { height: heroH, backgroundColor: theme.background }]}
-      accessible
-      accessibilityRole="header"
-      accessibilityLabel={accessibilityLabel}>
+    <View style={[styles.hero, { height: heroH, backgroundColor: theme.background }]}>
       <Animated.View
         style={[
           StyleSheet.absoluteFill,
-          { backgroundColor: motion === 'brake' ? ToneColors.big_green : toneColor },
+          { backgroundColor: motion === 'brake' ? ToneColors.big_green : palette.block },
           floodStyle,
         ]}>
-        {motion === 'brake' && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: toneColor }, warnStyle]} />}
+        {motion === 'brake' && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.block }, warnStyle]} />}
       </Animated.View>
+
+      {onFire && animate && (
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, streaksStyle]}>
+          <Streaks width={width} height={heroH} direction={streakDirection} clock={clock} />
+        </Animated.View>
+      )}
 
       {motion === 'brake' && animate && (
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, speedStyle]}>
@@ -305,18 +347,46 @@ export function PosterHero({
         />
       )}
 
-      <View style={styles.headline} pointerEvents="none">
-        {lines.map((line, i) => (
-          <Stamp key={i} delay={stampAt + i * 200} animate={animate}>
-            <Text style={[styles.headlineText, { fontSize: headlineSize, lineHeight: headlineSize * 0.92 }]}>
-              {line}
-            </Text>
+      <View
+        style={styles.headline}
+        pointerEvents="none"
+        accessible
+        accessibilityRole="header"
+        accessibilityLabel={accessibilityLabel}>
+        {chip && (
+          <Stamp delay={stampAt} animate={animate} fade>
+            <View style={[styles.chip, { backgroundColor: palette.wash }]}>
+              <ChipGlyph icon={chip.icon} color={palette.text} />
+              <Text style={[styles.chipText, textColor]}>{chip.label}</Text>
+            </View>
           </Stamp>
-        ))}
-        {subline && (
-          <Stamp delay={stampAt + lines.length * 200} animate={animate}>
-            <Text style={styles.subline}>{subline}</Text>
+        )}
+        <View>
+          {lines.map((line, i) => (
+            <Stamp key={i} delay={stampAt + i * 200} animate={animate}>
+              <Text style={[styles.headlineText, textColor, { fontSize: headlineSize, lineHeight }]}>
+                {line}
+                <Text style={celebrating ? { color: HeroAccent } : undefined}>{i === lines.length - 1 ? '.' : ''}</Text>
+              </Text>
+            </Stamp>
+          ))}
+        </View>
+        {rateLine ? (
+          <Stamp delay={stampAt + lines.length * 200} animate={animate} fade>
+            <View style={styles.rateLine}>
+              <Text style={[styles.rate, textColor]}>{rateLine.rate}</Text>
+              <Text style={styles.rateUnit}>a week</Text>
+              <Text style={styles.rateDetail} numberOfLines={1}>
+                {rateLine.detail}
+              </Text>
+            </View>
           </Stamp>
+        ) : (
+          subline && (
+            <Stamp delay={stampAt + lines.length * 200} animate={animate}>
+              <Text style={[styles.subline, textColor]}>{subline}</Text>
+            </Stamp>
+          )
         )}
       </View>
 
@@ -337,40 +407,90 @@ export function PosterHero({
       <Animated.View
         pointerEvents="none"
         style={[styles.arrow, { left: cx - S / 2, top: arrowTop, width: S, height: S, opacity: dimmed ? 0.5 : 1 }]}>
-        <Animated.View style={[StyleSheet.absoluteFill, arrowStyle]}>
-          <View style={[StyleSheet.absoluteFill, { transform: [{ translateY: S * 0.03 }, { rotate: `${-angleDeg}deg` }] }]}>
-            <ArrowShape size={S} color={SHADOW} dash={dash} />
-          </View>
+        {onFire && (
+          // Fire and sparks share the arrow's frame: drawn for an arrow pointing right, then turned with it.
           <View style={[StyleSheet.absoluteFill, { transform: [{ rotate: `${-angleDeg}deg` }] }]}>
-            <ArrowShape size={S} color="#FFFFFF" dash={dash} />
+            <FireTrail size={S} clock={animate ? clock : undefined} ignite={ignite} />
+            {animate && (
+              <Animated.View style={[StyleSheet.absoluteFill, streaksStyle]}>
+                <Sparks size={S} clock={clock} />
+              </Animated.View>
+            )}
           </View>
+        )}
+        <Animated.View style={[StyleSheet.absoluteFill, arrowStyle]}>
+          <Animated.View style={[StyleSheet.absoluteFill, bobStyle]}>
+            <View style={[StyleSheet.absoluteFill, { transform: [{ translateY: S * 0.03 }, { rotate: `${-angleDeg}deg` }] }]}>
+              <ArrowShape size={S} color={palette.lip} dash={dash} />
+            </View>
+            <View style={[StyleSheet.absoluteFill, { transform: [{ rotate: `${-angleDeg}deg` }] }]}>
+              <ArrowShape size={S} color={palette.arrow} dash={dash} />
+            </View>
+          </Animated.View>
         </Animated.View>
       </Animated.View>
 
-      {actions && (
-        <Stamp delay={animate ? heroSettleMs(motion) : 0} animate={animate} fade style={[styles.actions, { top: topInset + 12 }]}>
-          {actions}
+      {nav && (
+        <Stamp delay={animate ? heroSettleMs(motion) : 0} animate={animate} fade style={[styles.nav, { top: topInset + 12 }]}>
+          {nav.onHistory ? (
+            <RoundButton label="History" wash={palette.wash} onPress={nav.onHistory}>
+              <BarsIcon color={palette.text} />
+            </RoundButton>
+          ) : (
+            <View />
+          )}
+          <RoundButton label="Settings" wash={palette.wash} onPress={nav.onSettings}>
+            <SlidersIcon color={palette.text} knob={palette.block} />
+          </RoundButton>
         </Stamp>
       )}
     </View>
   );
 }
 
+/** A 44 pt round icon button on the block. */
+function RoundButton({
+  label,
+  wash,
+  onPress,
+  children,
+}: {
+  label: string;
+  wash: string;
+  onPress: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={4}
+      onPress={onPress}
+      style={({ pressed }) => [styles.roundButton, { backgroundColor: wash, opacity: pressed ? 0.7 : 1 }]}>
+      {children}
+    </Pressable>
+  );
+}
+
 const SLAB_DOWN_H = 110;
 const SLAB_UP_H = 100;
 
-/** Where everything sits in a hero of the given window size. */
-function heroLayout(width: number, height: number, topInset: number) {
+/**
+ * Where everything sits in a hero of the given window size. A celebrating
+ * arrow is smaller and leaves room behind it for the fire: below it when
+ * rising, above it when falling.
+ */
+function heroLayout(width: number, height: number, topInset: number, celebrating: boolean, angleDeg: number) {
   const body = Math.round(Math.min(440, Math.max(380, height * 0.48)));
-  const S = Math.round(Math.min(width * 0.55, 210));
-  const arrowTop = topInset + 8;
+  const S = Math.round(celebrating ? Math.min(width * 0.49, 190) : Math.min(width * 0.667, 260));
+  const arrowTop = topInset + (!celebrating ? 2 : angleDeg < -45 ? 50 : angleDeg > 45 ? 4 : 30);
   // A vertical arrow spans 0.085–0.885 of S (see ArrowShape).
   const tipDown = arrowTop + 0.885 * S;
   const tipUp = arrowTop + 0.115 * S;
   return {
     heroH: topInset + body,
     S,
-    cx: Math.round(width * 0.72),
+    cx: Math.round(width * 0.718),
     arrowTop,
     tipDown,
     tipUp,
@@ -518,28 +638,73 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 24,
     right: 24,
-    bottom: 28,
+    bottom: 26,
+    gap: 12,
+  },
+  chip: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  chipText: {
+    fontFamily: Type.bold,
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  rateLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.3)',
+  },
+  rate: {
+    fontFamily: Type.display,
+    fontSize: 22,
+  },
+  rateUnit: {
+    fontFamily: Type.semiBold,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.75)',
+  },
+  rateDetail: {
+    flexShrink: 1,
+    marginLeft: 'auto',
+    fontFamily: Type.semiBold,
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.75)',
   },
   stamp: {
     transformOrigin: 'left bottom',
   },
   headlineText: {
     fontFamily: Type.display,
-    color: '#FFFFFF',
-    letterSpacing: -1,
+    letterSpacing: -1.5,
   },
   subline: {
     fontFamily: Type.semiBold,
     fontSize: 17,
     lineHeight: 22,
-    color: '#FFFFFF',
   },
-  actions: {
+  nav: {
     position: 'absolute',
     left: 24,
+    right: 24,
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+  },
+  roundButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   slab: {
     position: 'absolute',
@@ -560,14 +725,14 @@ const styles = StyleSheet.create({
     fontFamily: Type.display,
     fontSize: 42,
     lineHeight: 40,
-    color: '#FFFFFF',
+    color: SLAB_INK,
     textTransform: 'uppercase',
   },
   crack: {
     position: 'absolute',
     height: 5,
     borderRadius: 3,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: SLAB_INK,
   },
   speedLine: {
     position: 'absolute',

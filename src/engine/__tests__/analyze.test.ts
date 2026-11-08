@@ -25,25 +25,59 @@ describe('analyze', () => {
     expect(a.confidence).toMatchObject({ level: 'calibrating', weighIns: 0 });
   });
 
-  it('calibrates until there are 5 weigh-ins over 7 days', () => {
+  it('calibrates on day 1 only', () => {
+    const dayOne = analyze(steadyLoss.slice(0, 1), { ...loseGoal, targetKg: 80 }, settings, START);
+    expect(dayOne.confidence).toEqual({ level: 'calibrating', weighIns: 1, weighInsNeeded: 2 });
+    expect(dayOne.arrow).toBeNull();
+    expect(dayOne.daysToTarget).toBeNull();
+
+    const dayTwo = analyze(steadyLoss.slice(0, 2), loseGoal, settings, addDays(START, 1));
+    expect(dayTwo.arrow).not.toBeNull();
+  });
+
+  it('marks the reading early until there are 5 weigh-ins over 7 days', () => {
     const fewEntries = analyze(steadyLoss.slice(0, 4), loseGoal, settings, addDays(START, 3));
     expect(fewEntries.confidence).toEqual({
-      level: 'calibrating',
+      level: 'early',
       weighIns: 4,
       weighInsNeeded: 5,
       days: 4,
       daysNeeded: 7,
     });
-    expect(fewEntries.arrow).toBeNull();
-    const withTarget = analyze(steadyLoss.slice(0, 4), { ...loseGoal, targetKg: 80 }, settings, addDays(START, 3));
-    expect(withTarget.daysToTarget).toBeNull();
 
     const fewDays = analyze(steadyLoss.slice(0, 6), loseGoal, settings, addDays(START, 5));
-    expect(fewDays.confidence.level).toBe('calibrating');
+    expect(fewDays.confidence.level).toBe('early');
 
     const ready = analyze(steadyLoss.slice(0, 7), loseGoal, settings, addDays(START, 6));
-    expect(ready.confidence.level).not.toBe('calibrating');
-    expect(ready.arrow).not.toBeNull();
+    expect(ready.confidence).toEqual({ level: 'ok' });
+  });
+
+  describe('early read', () => {
+    const at = (weighIns: ReturnType<typeof series>) =>
+      analyze(weighIns, loseGoal, settings, weighIns[weighIns.length - 1].timestamp.slice(0, 10));
+
+    it('shows a real drop on day 2', () => {
+      const a = at(series(START, 2, (i) => 90 - 1.2 * i));
+      expect(a.arrow?.state).toBe('optimal');
+    });
+
+    it('keeps a small day-2 wobble from swinging the arrow', () => {
+      expect(at(series(START, 2, (i) => 90 - 0.2 * i)).arrow?.state).toBe('flat');
+      expect(at(series(START, 2, (i) => 90 + 0.2 * i)).arrow?.state).toBe('flat');
+    });
+
+    it('settles on the real pace within the first week', () => {
+      const a = at(steadyLoss.slice(0, 7));
+      expect(a.arrow?.state).toBe('optimal');
+    });
+
+    it('hands over to the trend without the rate dropping off', () => {
+      const clean = series(START, 30, (i) => 90 - 0.09 * i);
+      const rates = analyze(clean, loseGoal, settings, addDays(START, 29)).series.map((p) => p.rate?.pctPerWeek ?? 0);
+      // Day 13 is the last early rate, day 14 the first from the trend.
+      expect(rates[14]).toBeCloseTo(rates[13], 1);
+      expect(Math.max(...rates.slice(10))).toBeLessThan(-0.6);
+    });
   });
 
   it('shows the big green arrow for steady loss in the optimal range', () => {
