@@ -10,7 +10,7 @@ A free, open-source weight tracker that ignores the day-to-day noise of the scal
 
 No accounts, no ads, no servers. Your data stays on your phone. See [SPEC.md](SPEC.md) for the full product spec.
 
-> **Status:** early development. You can log weigh-ins and see your trend and arrow. Onboarding, settings, history, and Health sync are next.
+> **Status:** early development. You can set up your goal and pace in onboarding, log weigh-ins, see your trend and animated arrow, and edit, exclude or delete past entries in History. Settings let you change your goal and pace later. Apple Health / Health Connect sync is next.
 
 ## Development
 
