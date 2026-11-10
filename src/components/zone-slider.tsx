@@ -11,7 +11,6 @@ import { haptic } from '@/lib/haptics';
 /** The scale runs from +RANGE at the top to −RANGE at the bottom, in % per week. */
 const RANGE = 1.5;
 const STEP = 0.05;
-const TRACK_H = 420;
 const TICKS = [1.5, 1, 0.5, 0, -0.5, -1, -1.5];
 const TAB_H = 40;
 const TAB_W = 104;
@@ -76,7 +75,7 @@ const fmt = (v: number, digits: number) => {
   return Number(a) === 0 ? a : `${v > 0 ? '+' : '−'}${a}`;
 };
 
-const y = (v: number) => ((RANGE - clamp(v, -RANGE, RANGE)) / (2 * RANGE)) * TRACK_H;
+const toY = (v: number, h: number) => ((RANGE - clamp(v, -RANGE, RANGE)) / (2 * RANGE)) * h;
 
 /**
  * A vertical scale of the arrow's stages with a draggable tab at each cutoff
@@ -86,14 +85,18 @@ export function ZoneSlider({
   goal,
   onChange,
   onDragging,
+  height = 420,
 }: {
   goal: Goal;
   onChange: (goal: Goal) => void;
+  /** Height of the scale in points. */
+  height?: number;
   /** Lets a parent ScrollView stop scrolling while a tab is dragged. */
   onDragging?: (dragging: boolean) => void;
 }) {
   const theme = useTheme();
   const [width, setWidth] = useState(0);
+  const y = (v: number) => toY(v, height);
   const list = cutoffs(goal);
   const edges = [RANGE, ...list.map((c) => c.value), -RANGE];
   const trackX = width - TAB_W - TRACK_W - 10;
@@ -107,7 +110,7 @@ export function ZoneSlider({
   }
 
   return (
-    <View style={{ height: TRACK_H }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
+    <View style={{ height }} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
       {width > 0 && (
         <>
           {ZONES[goal.type].map((state, i) => {
@@ -151,6 +154,8 @@ export function ZoneSlider({
               name={c.name}
               value={c.value}
               left={trackX + TRACK_W + 10}
+              top={y(c.value) - TAB_H / 2}
+              trackH={height}
               onMove={(v) => move(i, v)}
               onDragging={onDragging}
             />
@@ -165,12 +170,16 @@ function ZoneTab({
   name,
   value,
   left,
+  top,
+  trackH,
   onMove,
   onDragging,
 }: {
   name: string;
   value: number;
   left: number;
+  top: number;
+  trackH: number;
   onMove: (value: number) => void;
   onDragging?: (dragging: boolean) => void;
 }) {
@@ -195,7 +204,7 @@ function ZoneTab({
         onDragging?.(true);
       }}
       onResponderMove={(e) => {
-        if (drag) onMove(drag.v0 - ((e.nativeEvent.pageY - drag.y0) / TRACK_H) * 2 * RANGE);
+        if (drag) onMove(drag.v0 - ((e.nativeEvent.pageY - drag.y0) / trackH) * 2 * RANGE);
       }}
       onResponderRelease={end}
       onResponderTerminate={end}
@@ -207,7 +216,7 @@ function ZoneTab({
       onAccessibilityAction={(e) => onMove(value + (e.nativeEvent.actionName === 'increment' ? STEP : -STEP))}
       style={[
         styles.tab,
-        { left, top: y(value) - TAB_H / 2, backgroundColor: fill, transform: [{ scale: active ? 1.06 : 1 }] },
+        { left, top, backgroundColor: fill, transform: [{ scale: active ? 1.06 : 1 }] },
       ]}>
       <View style={[styles.notch, { borderRightColor: fill }]} />
       <Text style={[styles.tabText, { color: active ? '#FFFFFF' : theme.onInk }]}>{label}</Text>
@@ -300,3 +309,12 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
   },
 });
+
+/** The zones top to bottom with their color and share of the scale, for a small preview bar. */
+export function zoneBands(goal: Goal): { color: string; share: number }[] {
+  const edges = [RANGE, ...cutoffs(goal).map((c) => c.value), -RANGE];
+  return ZONES[goal.type].map((state, i) => ({
+    color: ToneColors[STATE_TONE[state]],
+    share: (edges[i] - edges[i + 1]) / (2 * RANGE),
+  }));
+}

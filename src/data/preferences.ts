@@ -17,6 +17,8 @@ export interface Preferences {
   trend: TrendSettings;
   /** iOS: show the arrow on the app icon. Off by default, since iOS pops up an alert on every change. */
   liveAppIcon: boolean;
+  /** Leave the day's scale reading off the home screen; the trend still shows. */
+  hideScaleWeight: boolean;
 }
 
 /** Starting values; onboarding has the user choose their own goal and pace (SPEC §7.6). */
@@ -32,6 +34,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   },
   trend: DEFAULT_TREND_SETTINGS,
   liveAppIcon: false,
+  hideScaleWeight: false,
 };
 
 type Key = keyof Preferences;

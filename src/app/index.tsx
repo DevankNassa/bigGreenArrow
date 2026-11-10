@@ -49,7 +49,14 @@ export default function HomeScreen() {
             </View>
           </>
         ) : (
-          <ArrowSummary analysis={analysis} goal={goal} unit={unit} topInset={insets.top} nav={nav} />
+          <ArrowSummary
+            analysis={analysis}
+            goal={goal}
+            unit={unit}
+            topInset={insets.top}
+            nav={nav}
+            hideScaleWeight={preferences.hideScaleWeight}
+          />
         )}
       </ScrollView>
 

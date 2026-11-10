@@ -44,6 +44,7 @@ export function ArrowSummary({
   unit,
   topInset = 0,
   nav,
+  hideScaleWeight = false,
 }: {
   analysis: Analysis;
   goal: Goal;
@@ -51,6 +52,7 @@ export function ArrowSummary({
   /** Safe-area inset the hero extends under. */
   topInset?: number;
   nav?: { onHistory?: () => void; onSettings: () => void };
+  hideScaleWeight?: boolean;
 }) {
   const theme = useTheme();
   const reduceMotion = useReducedMotion();
@@ -97,7 +99,7 @@ export function ArrowSummary({
   const targetRow = target ? { label: 'Target', value: `${target} ± ${pace(goal.targetBandPct)}%` } : null;
 
   const rows: ({ label: string; value: ReactNode } | null | undefined | false)[] = [
-    latest && { label: 'Scale today', value: formatWeight(latest.weightKg, unit) },
+    latest && !hideScaleWeight && { label: 'Scale today', value: formatWeight(latest.weightKg, unit) },
   ];
   switch (state) {
     case 'optimal':

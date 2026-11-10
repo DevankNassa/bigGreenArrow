@@ -42,8 +42,6 @@ export default function RootLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="log" options={{ presentation: 'modal' }} />
             <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
-            <Stack.Screen name="history" options={{ headerShown: true, title: 'History' }} />
-            <Stack.Screen name="settings" options={{ headerShown: true, title: 'Settings' }} />
             <Stack.Screen name="demo" options={{ headerShown: true, title: 'Demo scenarios' }} />
           </Stack>
         </DataProvider>
