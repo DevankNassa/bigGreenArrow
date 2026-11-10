@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,6 +8,7 @@ import { Button } from '@/components/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useData } from '@/data/data-context';
 import { SCENARIOS } from '@/demo/scenarios';
 import { DEFAULT_TREND_SETTINGS, analyze } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
@@ -15,6 +17,8 @@ import { localIsoDate } from '@/lib/dates';
 /** Development-only screen for trying every arrow state on sample data. */
 export default function DemoScreen() {
   const theme = useTheme();
+  const { weighIns, addWeighIn, deleteWeighIn, setPreferences } = useData();
+  const [loading, setLoading] = useState(false);
   const [scenarioKey, setScenarioKey] = useState(SCENARIOS[0].key);
   // Remounting the summary replays the entrance and any celebration.
   const [replays, setReplays] = useState(0);
@@ -50,6 +54,19 @@ export default function DemoScreen() {
         </ScrollView>
 
         <Button label="Replay animation" variant="secondary" onPress={() => setReplays((n) => n + 1)} />
+        <Button
+          label={loading ? 'Loading…' : 'Use this data in the app'}
+          disabled={loading}
+          onPress={async () => {
+            // Replaces every weigh-in, so History and Settings can be tried on the sample.
+            setLoading(true);
+            for (const w of weighIns) await deleteWeighIn(w.id);
+            for (const w of scenario.weighIns) await addWeighIn(w);
+            await setPreferences({ goal: scenario.goal, onboarded: true });
+            setLoading(false);
+            router.replace('/');
+          }}
+        />
       </SafeAreaView>
     </ThemedView>
   );
