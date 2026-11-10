@@ -13,18 +13,17 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
-import { CelebrationBurst } from '@/components/celebration-burst';
+import { BarsIcon, ChipGlyph, SlidersIcon } from '@/components/hero-fx';
 import {
-  BarsIcon,
-  ChipGlyph,
-  FireTrail,
-  SlidersIcon,
-  Sparks,
-  Streaks,
-  useFxClock,
-  useIgnite,
-  type StreakDirection,
-} from '@/components/hero-fx';
+  PLATE_BEATS,
+  PLATE_END,
+  PlateScene,
+  STAGE_BLOCK_H,
+  STAGE_W,
+  plateJolt,
+  stampStyle,
+  type PlateKind,
+} from '@/components/plate-scene';
 import { ArrowShape } from '@/components/trend-arrow';
 import { HeroAccent, HeroColors, ToneColors, Type } from '@/constants/theme';
 import type { ArrowTone } from '@/engine';
@@ -34,52 +33,51 @@ import { hapticTimeline, type HapticBeat } from '@/lib/haptics';
 
 /**
  * How the hero arrives (SPEC §6.5):
- * - `smash_down` Optimal loss: the arrow slams a "Scale noise" slab twice and breaks it.
- * - `smash_up` Optimal gain: the arrow punches up through a "Plateau" slab.
- * - `stamp` On target (maintain): the arrow slides in flat and sticks.
+ * - `break` Optimal loss: the arrow drops on a weight plate and breaks it (see PlateScene).
+ * - `lift` Optimal gain: the arrow presses the plate overhead.
+ * - `hit` On target (maintain): the arrow flies in flat and sticks in the plate.
  * - `brake` Too fast: the arrow rattles in, then the block snaps to the warning color.
  * - `enter` everything else: the block fills and the arrow drops into place.
  */
-export type HeroMotion = 'enter' | 'smash_down' | 'smash_up' | 'stamp' | 'brake';
+export type HeroMotion = 'enter' | PlateKind | 'brake';
+
+function isPlate(motion: HeroMotion): motion is PlateKind {
+  return motion === 'break' || motion === 'lift' || motion === 'hit';
+}
 
 const FLOOD_MS = 400;
-const HIT1 = 620;
-const HIT2 = 1150;
 const SNAP = 1500;
 
-/** When the headline starts fading in: after the slab breaks, the arrow sticks or the color snaps. */
-const TEXT_AT: Record<HeroMotion, number> = { enter: 300, smash_down: 1300, smash_up: 1300, stamp: 700, brake: 1700 };
+/** When the headline starts fading in: once the arrow lands or the color snaps. */
+const TEXT_AT: Record<'enter' | 'brake', number> = { enter: 300, brake: 1700 };
 
-/** When a celebrating hero's fire catches: once the arrow has come to rest. */
-const IGNITE_AT: Record<HeroMotion, number> = { enter: 600, smash_down: 1350, smash_up: 1350, stamp: 800, brake: 0 };
-
-/** When the hero's headline has landed; the stats below rise in from here. */
+/**
+ * When the stats below the hero rise in. On a plate celebration they're there
+ * from the start, like the design, and only the day count moves later.
+ */
 export function heroSettleMs(motion: HeroMotion): number {
-  return TEXT_AT[motion] + 400;
+  return isPlate(motion) ? 0 : TEXT_AT[motion] + 400;
 }
+
+/** When the day count under the hero rolls up by one. */
+export function heroRollMs(motion: HeroMotion): number {
+  return isPlate(motion) ? PLATE_BEATS.roll : heroSettleMs(motion) + 700;
+}
+
+/** The plate's clock: one heavy hit at 1.4 s, the headline stamps, then the day count. */
+const PLATE_HAPTICS: readonly (readonly [number, HapticBeat])[] = [
+  [PLATE_BEATS.hit, 'land'],
+  [PLATE_BEATS.line1, 'rigid'],
+  [PLATE_BEATS.line2, 'rigid'],
+  [PLATE_BEATS.roll, 'success'],
+];
 
 const HAPTICS: Record<HeroMotion, readonly (readonly [number, HapticBeat])[]> = {
   enter: [[FLOOD_MS - 50, 'tap']],
-  smash_down: [
-    [HIT1, 'launch'],
-    [HIT2, 'land'],
-    [1300, 'rigid'],
-    [1500, 'rigid'],
-    [1800, 'success'],
-  ],
-  smash_up: [
-    [HIT1, 'launch'],
-    [HIT2, 'land'],
-    [1300, 'rigid'],
-    [1500, 'rigid'],
-    [1800, 'success'],
-  ],
-  stamp: [
-    [620, 'land'],
-    [700, 'tick'],
-    [800, 'tick'],
-    [1000, 'success'],
-  ],
+  // Loss hits the plate twice: the first strike only cracks it.
+  break: [[PLATE_BEATS.firstHit, 'launch'], ...PLATE_HAPTICS],
+  lift: PLATE_HAPTICS,
+  hit: PLATE_HAPTICS,
   brake: [
     [550, 'launch'],
     [750, 'tick'],
@@ -91,10 +89,6 @@ const HAPTICS: Record<HeroMotion, readonly (readonly [number, HapticBeat])[]> = 
   ],
 };
 
-/** The slab is paper on the ink block, so it reads against the fire hero. */
-const SLAB_COLOR = '#F4F1EA';
-const SLAB_INK = '#111111';
-
 type PosterHeroProps = {
   tone: ArrowTone;
   /** 0 points right, +90 up, −90 down. */
@@ -104,8 +98,8 @@ type PosterHeroProps = {
   /** Faded arrow while calibrating or on low confidence. */
   dimmed?: boolean;
   /**
-   * Optimal / On target: the ink block, with the arrow riding a fire trail and
-   * a rate line under the headline instead of a chip and subline.
+   * Optimal / On target: the headline gets the green period and a rate line
+   * under it instead of a chip and subline.
    */
   celebrating?: boolean;
   /** The pill above the headline. */
@@ -146,33 +140,24 @@ export function PosterHero({
   const reduceMotion = useReducedMotion();
   const animate = !reduceMotion;
   const { width, height } = useWindowDimensions();
-  const box = heroLayout(width, height, topInset, celebrating, angleDeg);
+  const plate = isPlate(motion) ? motion : null;
+  const box = heroLayout(width, height, topInset, plate !== null);
   const { S, cx, arrowTop, heroH } = box;
   const palette = HeroColors[tone];
-  const onFire = celebrating && !dimmed;
-  const clock = useFxClock(onFire && animate);
-  const ignite = useIgnite(IGNITE_AT[motion], onFire && animate);
-  const streakDirection: StreakDirection = angleDeg < -45 ? 'up' : angleDeg > 45 ? 'down' : 'left';
 
-  const vertical = motion === 'smash_down' || motion === 'brake' ? 1 : motion === 'smash_up' ? -1 : 0;
-  const hitDown = box.slabDownTop - box.tipDown;
-  const hitUp = box.slabUpTop + SLAB_UP_H - box.tipUp;
+  const vertical = motion === 'brake' ? 1 : 0;
 
-  const flood = useSharedValue(animate ? heroH : 0);
+  const flood = useSharedValue(animate && !plate ? heroH : 0);
   const warn = useSharedValue(motion === 'brake' && animate ? 0 : 1);
-  const arrowX = useSharedValue(animate && motion === 'stamp' ? -width : 0);
-  const arrowY = useSharedValue(
-    !animate ? 0 : motion === 'smash_up' ? heroH : motion === 'smash_down' || motion === 'brake' ? -heroH : -40,
-  );
+  const arrowX = useSharedValue(0);
+  const arrowY = useSharedValue(!animate || plate ? 0 : motion === 'brake' ? -heroH : -40);
   const arrowOpacity = useSharedValue(animate && motion === 'enter' ? 0 : 1);
   const along = useSharedValue(1);
   const across = useSharedValue(1);
-  const shake = useSharedValue(0);
-  const crack = useSharedValue(0);
-  const fall = useSharedValue(0);
-  const burst = useSharedValue(0);
   const speed = useSharedValue(0);
   const speedClock = useSharedValue(0);
+  // The plate scene's clock in ms; reduced motion shows its last frame.
+  const clock = useSharedValue(animate ? 0 : PLATE_END);
 
   useEffect(() => {
     if (!animate) {
@@ -180,8 +165,11 @@ export function PosterHero({
         motion === 'brake' ? [[300, 'warning']] : motion === 'enter' ? [] : [[300, 'success']],
       );
     }
+    if (plate) {
+      clock.set(withTiming(PLATE_END, { duration: PLATE_END, easing: Easing.linear }));
+      return hapticTimeline(HAPTICS[motion]);
+    }
     const easeIn = (duration: number) => ({ duration, easing: Easing.in(Easing.quad) });
-    const easeOut = (duration: number) => ({ duration, easing: Easing.out(Easing.cubic) });
     const settle = { damping: 6, stiffness: 300 };
 
     flood.set(withTiming(0, { duration: FLOOD_MS, easing: Easing.bezier(0.6, 0, 0.2, 1) }));
@@ -199,40 +187,7 @@ export function PosterHero({
       across.set(seq(1.12, 1));
     };
 
-    if (motion === 'smash_down' || motion === 'smash_up') {
-      const dir = motion === 'smash_down' ? 1 : -1;
-      const hit = motion === 'smash_down' ? hitDown : hitUp;
-      // Down: recoil is up (negative). Up: recoil is down (positive).
-      arrowY.set(
-        withSequence(
-          withDelay(FLOOD_MS, withTiming(hit, easeIn(HIT1 - FLOOD_MS))),
-          withTiming(hit - dir * 50, easeOut(200)),
-          withTiming(hit - dir * 66, { duration: 200 }),
-          withTiming(hit, easeIn(HIT2 - HIT1 - 400)),
-          withTiming(-dir * 18, easeOut(220)),
-          withTiming(dir * 5, { duration: 140 }),
-          withTiming(0, { duration: 140 }),
-        ),
-      );
-      squashAt([HIT1, HIT2]);
-      const jolt = (at: number, prev: number) =>
-        withDelay(
-          at - prev,
-          withSequence(
-            withTiming(-5, { duration: 40 }),
-            withTiming(5, { duration: 40 }),
-            withTiming(0, { duration: 60 }),
-          ),
-        );
-      shake.set(withSequence(jolt(HIT1, 0), jolt(HIT2, HIT1 + 140)));
-      crack.set(withDelay(HIT1, withTiming(1, { duration: 60 })));
-      fall.set(withDelay(HIT2, withTiming(1, easeIn(520))));
-      burst.set(withDelay(HIT2, withTiming(1, { duration: 1200, easing: Easing.linear })));
-    } else if (motion === 'stamp') {
-      arrowX.set(withDelay(FLOOD_MS, withSpring(0, { damping: 9, stiffness: 140, overshootClamping: false })));
-      squashAt([620]);
-      burst.set(withDelay(640, withTiming(1, { duration: 1200, easing: Easing.linear })));
-    } else if (motion === 'brake') {
+    if (motion === 'brake') {
       arrowY.set(withDelay(FLOOD_MS, withTiming(0, easeIn(150))));
       const rattle = Array.from({ length: 9 }, (_, i) => withTiming(i % 2 ? 3 : -3, { duration: 100 }));
       arrowX.set(withDelay(550, withSequence(...rattle, withTiming(0, { duration: 60 }))));
@@ -260,34 +215,9 @@ export function PosterHero({
     }
 
     return hapticTimeline(HAPTICS[motion]);
-  }, [
-    across,
-    along,
-    animate,
-    arrowOpacity,
-    arrowX,
-    arrowY,
-    burst,
-    crack,
-    fall,
-    flood,
-    hitDown,
-    hitUp,
-    motion,
-    shake,
-    speed,
-    speedClock,
-    warn,
-  ]);
+  }, [across, along, animate, arrowOpacity, arrowX, arrowY, clock, flood, motion, plate, speed, speedClock, warn]);
 
   const floodStyle = useAnimatedStyle(() => ({ transform: [{ translateY: flood.get() }] }));
-  const streaksStyle = useAnimatedStyle(() => ({ opacity: ignite.get() }));
-  // A cel-style jitter once the fire is lit: 3 px every other frame.
-  const bobStyle = useAnimatedStyle(() => {
-    const on = onFire && animate && ignite.get() >= 1 && Math.floor(clock.get() / 120) % 2 === 1;
-    const by = on ? (3 * S) / 190 : 0;
-    return { transform: streakDirection === 'left' ? [{ translateX: by }] : [{ translateY: by }] };
-  });
   const warnStyle = useAnimatedStyle(() => ({ opacity: warn.get() }));
   const speedStyle = useAnimatedStyle(() => ({ opacity: speed.get() }));
   const arrowStyle = useAnimatedStyle(() => ({
@@ -299,17 +229,20 @@ export function PosterHero({
       { scaleY: vertical ? along.get() : across.get() },
     ],
   }));
+  // The whole block kicks the way the arrow points when it hits the plate.
+  const joltStyle = useAnimatedStyle(() => (plate ? { transform: [plateJolt(plate, clock.get())] } : {}));
+  const rateStyle = useAnimatedStyle(() =>
+    plate ? { opacity: Math.min(1, Math.max(0, (clock.get() - PLATE_BEATS.rate) / 240)) } : {},
+  );
 
-  const smash = animate && (motion === 'smash_down' || motion === 'smash_up');
-  const impactY = motion === 'smash_up' ? box.slabUpTop + SLAB_UP_H : box.slabDownTop;
   const lines = headline.toUpperCase().split(' ');
   const headlineSize = Math.min(celebrating ? 60 : 56, (width - 48) / ((Math.max(...lines.map((l) => l.length)) + 1) * 0.8));
   const lineHeight = headlineSize * (celebrating ? 0.86 : 0.92);
   const textColor = { color: palette.text };
-  const textAt = animate ? TEXT_AT[motion] : 0;
+  const textAt = !animate ? 0 : plate ? PLATE_BEATS.line1 : TEXT_AT[motion as 'enter' | 'brake'];
 
   return (
-    <View style={[styles.hero, { height: heroH, backgroundColor: theme.background }]}>
+    <Animated.View style={[styles.hero, { height: heroH, backgroundColor: theme.background }, joltStyle]}>
       <Animated.View
         style={[
           StyleSheet.absoluteFill,
@@ -319,12 +252,6 @@ export function PosterHero({
         {motion === 'brake' && <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: palette.block }, warnStyle]} />}
       </Animated.View>
 
-      {onFire && animate && (
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, streaksStyle]}>
-          <Streaks width={width} height={heroH} direction={streakDirection} clock={clock} />
-        </Animated.View>
-      )}
-
       {motion === 'brake' && animate && (
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, speedStyle]}>
           {[-0.7, -0.55, 0.55, 0.7].map((dx, i) => (
@@ -333,18 +260,10 @@ export function PosterHero({
         </Animated.View>
       )}
 
-      {smash && (
-        <Slab
-          top={motion === 'smash_down' ? box.slabDownTop : box.slabUpTop}
-          height={motion === 'smash_down' ? SLAB_DOWN_H : SLAB_UP_H}
-          width={width - 48}
-          splitX={Math.min(width - 88, Math.max(40, cx - 24))}
-          label={motion === 'smash_down' ? 'Scale\nnoise' : 'Plateau'}
-          fallBy={motion === 'smash_down' ? heroH : -(box.slabUpTop + SLAB_UP_H + 40)}
-          shake={shake}
-          crack={crack}
-          fall={fall}
-        />
+      {plate && (
+        <View pointerEvents="none" style={[styles.stage, { left: (width - STAGE_W) / 2, top: box.stageTop }]}>
+          <PlateScene kind={plate} clock={clock} colors={palette} dimmed={dimmed} />
+        </View>
       )}
 
       <View
@@ -362,25 +281,36 @@ export function PosterHero({
           </FadeIn>
         )}
         <View>
-          {lines.map((line, i) => (
-            <FadeIn key={i} delay={textAt + i * 200} animate={animate}>
+          {lines.map((line, i) => {
+            const text = (
               <Text style={[styles.headlineText, textColor, { fontSize: headlineSize, lineHeight }]}>
                 {line}
                 <Text style={celebrating ? { color: HeroAccent } : undefined}>{i === lines.length - 1 ? '.' : ''}</Text>
               </Text>
-            </FadeIn>
-          ))}
+            );
+            return plate ? (
+              <Stamp key={i} clock={clock} at={i === 0 ? PLATE_BEATS.line1 : PLATE_BEATS.line2}>
+                {text}
+              </Stamp>
+            ) : (
+              <FadeIn key={i} delay={textAt + i * 200} animate={animate}>
+                {text}
+              </FadeIn>
+            );
+          })}
         </View>
         {rateLine ? (
-          <FadeIn delay={textAt + lines.length * 200} animate={animate}>
-            <View style={styles.rateLine}>
-              <Text style={[styles.rate, textColor]}>{rateLine.rate}</Text>
-              <Text style={styles.rateUnit}>a week</Text>
-              <Text style={styles.rateDetail} numberOfLines={1}>
-                {rateLine.detail}
-              </Text>
-            </View>
-          </FadeIn>
+          <Animated.View style={plate ? rateStyle : undefined}>
+            <FadeIn delay={textAt + lines.length * 200} animate={animate && !plate}>
+              <View style={styles.rateLine}>
+                <Text style={[styles.rate, textColor]}>{rateLine.rate}</Text>
+                <Text style={styles.rateUnit}>a week</Text>
+                <Text style={styles.rateDetail} numberOfLines={1}>
+                  {rateLine.detail}
+                </Text>
+              </View>
+            </FadeIn>
+          </Animated.View>
         ) : (
           subline && (
             <FadeIn delay={textAt + lines.length * 200} animate={animate}>
@@ -390,36 +320,11 @@ export function PosterHero({
         )}
       </View>
 
-      {(motion === 'smash_down' || motion === 'smash_up' || motion === 'stamp') && animate && (
-        <View
+      {!plate && (
+        <Animated.View
           pointerEvents="none"
-          style={[
-            styles.burst,
-            motion === 'stamp'
-              ? { left: cx + S * 0.38 - width * 0.4, top: arrowTop + S / 2 - width * 0.4 }
-              : { left: cx - width * 0.4, top: impactY - width * 0.4 },
-            { width: width * 0.8, height: width * 0.8 },
-          ]}>
-          <CelebrationBurst progress={burst} size={width * 0.8} />
-        </View>
-      )}
-
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.arrow, { left: cx - S / 2, top: arrowTop, width: S, height: S, opacity: dimmed ? 0.5 : 1 }]}>
-        {onFire && (
-          // Fire and sparks share the arrow's frame: drawn for an arrow pointing right, then turned with it.
-          <View style={[StyleSheet.absoluteFill, { transform: [{ rotate: `${-angleDeg}deg` }] }]}>
-            <FireTrail size={S} clock={animate ? clock : undefined} ignite={ignite} />
-            {animate && (
-              <Animated.View style={[StyleSheet.absoluteFill, streaksStyle]}>
-                <Sparks size={S} clock={clock} />
-              </Animated.View>
-            )}
-          </View>
-        )}
-        <Animated.View style={[StyleSheet.absoluteFill, arrowStyle]}>
-          <Animated.View style={[StyleSheet.absoluteFill, bobStyle]}>
+          style={[styles.arrow, { left: cx - S / 2, top: arrowTop, width: S, height: S, opacity: dimmed ? 0.5 : 1 }]}>
+          <Animated.View style={[StyleSheet.absoluteFill, arrowStyle]}>
             <View style={[StyleSheet.absoluteFill, { transform: [{ translateY: S * 0.03 }, { rotate: `${-angleDeg}deg` }] }]}>
               <ArrowShape size={S} color={palette.lip} dash={dash} />
             </View>
@@ -428,7 +333,7 @@ export function PosterHero({
             </View>
           </Animated.View>
         </Animated.View>
-      </Animated.View>
+      )}
 
       {nav && (
         <FadeIn delay={animate ? heroSettleMs(motion) : 0} animate={animate} style={[styles.nav, { top: topInset + 12 }]}>
@@ -444,8 +349,14 @@ export function PosterHero({
           </RoundButton>
         </FadeIn>
       )}
-    </View>
+    </Animated.View>
   );
+}
+
+/** A headline line that stamps in on the plate's clock. */
+function Stamp({ clock, at, children }: { clock: SharedValue<number>; at: number; children: ReactNode }) {
+  const style = useAnimatedStyle(() => stampStyle(clock.get(), at));
+  return <Animated.View style={[{ transformOrigin: 'left bottom' }, style]}>{children}</Animated.View>;
 }
 
 /** A 44 pt round icon button on the block. */
@@ -472,30 +383,21 @@ function RoundButton({
   );
 }
 
-const SLAB_DOWN_H = 110;
-const SLAB_UP_H = 100;
-
 /**
- * Where everything sits in a hero of the given window size. A celebrating
- * arrow is smaller and leaves room behind it for the fire: below it when
- * rising, above it when falling.
+ * Where everything sits in a hero of the given window size. A plate
+ * celebration lays its stage out as drawn, a little up under the safe area
+ * (the stage's top 56 pt is headroom for the lifted bar), and the block ends
+ * where the design's does.
  */
-function heroLayout(width: number, height: number, topInset: number, celebrating: boolean, angleDeg: number) {
+function heroLayout(width: number, height: number, topInset: number, plate: boolean) {
   const body = Math.round(Math.min(440, Math.max(380, height * 0.48)));
-  const S = Math.round(celebrating ? Math.min(width * 0.49, 190) : Math.min(width * 0.667, 260));
-  const arrowTop = topInset + (!celebrating ? 2 : angleDeg < -45 ? 50 : angleDeg > 45 ? 4 : 30);
-  // A vertical arrow spans 0.085–0.885 of S (see ArrowShape).
-  const tipDown = arrowTop + 0.885 * S;
-  const tipUp = arrowTop + 0.115 * S;
+  const stageTop = Math.max(0, topInset - 16);
   return {
-    heroH: topInset + body,
-    S,
+    heroH: plate ? stageTop + STAGE_BLOCK_H : topInset + body,
+    S: Math.round(Math.min(width * 0.667, 260)),
     cx: Math.round(width * 0.718),
-    arrowTop,
-    tipDown,
-    tipUp,
-    slabDownTop: tipDown + 14,
-    slabUpTop: tipUp + 130 - SLAB_UP_H,
+    arrowTop: topInset + 2,
+    stageTop,
   };
 }
 
@@ -517,81 +419,6 @@ function FadeIn({
   }, [animate, delay, p]);
   const anim = useAnimatedStyle(() => ({ opacity: p.get() }));
   return <Animated.View style={[style, anim]}>{children}</Animated.View>;
-}
-
-/** A black slab split where the arrow hits; it cracks, then its halves fall away. */
-function Slab({
-  top,
-  height,
-  width,
-  splitX,
-  label,
-  fallBy,
-  shake,
-  crack,
-  fall,
-}: {
-  top: number;
-  height: number;
-  width: number;
-  splitX: number;
-  label: string;
-  fallBy: number;
-  shake: SharedValue<number>;
-  crack: SharedValue<number>;
-  fall: SharedValue<number>;
-}) {
-  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.get() }] }));
-  const leftStyle = useAnimatedStyle(() => {
-    const p = fall.get();
-    return { transform: [{ translateX: -44 * p }, { translateY: fallBy * p }, { rotate: `${-16 * p}deg` }] };
-  });
-  const rightStyle = useAnimatedStyle(() => {
-    const p = fall.get();
-    return { transform: [{ translateX: 54 * p }, { translateY: fallBy * p }, { rotate: `${24 * p}deg` }] };
-  });
-  const crackStyle = useAnimatedStyle(() => ({ opacity: fall.get() > 0.01 ? 0 : crack.get() }));
-
-  const face = (
-    <View style={[styles.slabFace, { width, height }]}>
-      <Text style={styles.slabText}>{label}</Text>
-    </View>
-  );
-  const points: [number, number][] = [
-    [splitX, 0],
-    [splitX - 14, height * 0.32],
-    [splitX + 12, height * 0.62],
-    [splitX - 6, height],
-  ];
-
-  return (
-    <Animated.View pointerEvents="none" style={[styles.slab, { top, width, height }, shakeStyle]}>
-      <Animated.View style={[styles.half, { left: 0, width: splitX, height }, leftStyle]}>{face}</Animated.View>
-      <Animated.View style={[styles.half, { left: splitX, width: width - splitX, height }, rightStyle]}>
-        <View style={{ marginLeft: -splitX }}>{face}</View>
-      </Animated.View>
-      <Animated.View style={[StyleSheet.absoluteFill, crackStyle]}>
-        {points.slice(1).map(([x2, y2], i) => {
-          const [x1, y1] = points[i];
-          const len = Math.hypot(x2 - x1, y2 - y1);
-          return (
-            <View
-              key={i}
-              style={[
-                styles.crack,
-                {
-                  left: (x1 + x2) / 2 - len / 2,
-                  top: (y1 + y2) / 2 - 2.5,
-                  width: len,
-                  transform: [{ rotate: `${(Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI}deg` }],
-                },
-              ]}
-            />
-          );
-        })}
-      </Animated.View>
-    </Animated.View>
-  );
 }
 
 /** One streak streaming up past a falling arrow. */
@@ -625,8 +452,9 @@ const styles = StyleSheet.create({
   arrow: {
     position: 'absolute',
   },
-  burst: {
+  stage: {
     position: 'absolute',
+    width: STAGE_W,
   },
   headline: {
     position: 'absolute',
@@ -696,34 +524,6 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  slab: {
-    position: 'absolute',
-    left: 24,
-  },
-  half: {
-    position: 'absolute',
-    top: 0,
-    overflow: 'hidden',
-  },
-  slabFace: {
-    borderRadius: 8,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    backgroundColor: SLAB_COLOR,
-  },
-  slabText: {
-    fontFamily: Type.display,
-    fontSize: 42,
-    lineHeight: 40,
-    color: SLAB_INK,
-    textTransform: 'uppercase',
-  },
-  crack: {
-    position: 'absolute',
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: SLAB_INK,
   },
   speedLine: {
     position: 'absolute',

@@ -1,15 +1,16 @@
 import { useEffect, type ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  Easing,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
   withDelay,
   withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 
-import { MiniFlame } from '@/components/hero-fx';
-import { PosterHero, heroSettleMs, type HeroMotion } from '@/components/poster-hero';
+import { PosterHero, heroRollMs, heroSettleMs, type HeroMotion } from '@/components/poster-hero';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing, Type } from '@/constants/theme';
 import { fromKg, type Analysis, type ArrowReading, type Goal, type WeightUnit } from '@/engine';
@@ -32,8 +33,8 @@ function pace(n: number): string {
 export function heroMotion(arrow: ArrowReading | null, goal: Goal): HeroMotion {
   if (!arrow) return 'enter';
   if (arrow.state === 'too_fast') return 'brake';
-  if (arrow.state === 'on_target') return 'stamp';
-  if (arrow.state === 'optimal') return goal.type === 'gain' ? 'smash_up' : 'smash_down';
+  if (arrow.state === 'on_target') return 'hit';
+  if (arrow.state === 'optimal') return goal.type === 'gain' ? 'lift' : 'break';
   return 'enter';
 }
 
@@ -86,10 +87,7 @@ export function ArrowSummary({
       : null;
 
   const streakValue = arrow && (
-    <View style={styles.streak}>
-      <MiniFlame animate={!reduceMotion} />
-      <Roll from={Math.max(0, arrow.streakDays - 1)} to={arrow.streakDays} delay={rise + 700} animate={!reduceMotion} />
-    </View>
+    <Roll from={Math.max(0, arrow.streakDays - 1)} to={arrow.streakDays} delay={heroRollMs(motion)} animate={!reduceMotion} />
   );
   const toReach =
     analysis.daysToTarget !== null && analysis.daysToTarget > 0 && target
@@ -226,7 +224,9 @@ function Roll({ from, to, delay, animate }: { from: number; to: number; delay: n
   const theme = useTheme();
   const p = useSharedValue(animate && from !== to ? 0 : 1);
   useEffect(() => {
-    if (animate && from !== to) p.set(withDelay(delay, withSpring(1, { damping: 12, stiffness: 160 })));
+    if (animate && from !== to) {
+      p.set(withDelay(delay, withTiming(1, { duration: 120, easing: Easing.bezier(0.3, 1.4, 0.5, 1) })));
+    }
   }, [animate, delay, from, p, to]);
   const anim = useAnimatedStyle(() => ({ transform: [{ translateY: -ROLL_LINE * p.get() }] }));
   return (
@@ -284,11 +284,6 @@ const styles = StyleSheet.create({
   rowValue: {
     fontFamily: Type.display,
     fontSize: 17,
-  },
-  streak: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
   },
   advice: {
     fontFamily: Type.medium,

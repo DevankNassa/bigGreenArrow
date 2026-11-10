@@ -50,7 +50,7 @@ export default function DemoScreen() {
         </ThemedText>
 
         <ScrollView style={styles.summary} contentContainerStyle={styles.summaryContent}>
-          <ArrowSummary key={replays} analysis={analysis} goal={scenario.goal} unit="kg" />
+          <ArrowSummary key={`${scenarioKey}-${replays}`} analysis={analysis} goal={scenario.goal} unit="kg" />
         </ScrollView>
 
         <Button label="Replay animation" variant="secondary" onPress={() => setReplays((n) => n + 1)} />
