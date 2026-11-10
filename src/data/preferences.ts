@@ -15,6 +15,8 @@ export interface Preferences {
   unit: WeightUnit;
   goal: Goal;
   trend: TrendSettings;
+  /** iOS: show the arrow on the app icon. Off by default, since iOS pops up an alert on every change. */
+  liveAppIcon: boolean;
 }
 
 /** Starting values; onboarding has the user choose their own goal and pace (SPEC §7.6). */
@@ -29,6 +31,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
     targetBandPct: DEFAULT_TARGET_BAND_PCT,
   },
   trend: DEFAULT_TREND_SETTINGS,
+  liveAppIcon: false,
 };
 
 type Key = keyof Preferences;

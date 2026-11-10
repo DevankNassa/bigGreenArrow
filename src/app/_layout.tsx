@@ -5,6 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { useColorScheme } from 'react-native';
 
+import { LiveAppIcon } from '@/components/live-app-icon';
 import { Colors, Type } from '@/constants/theme';
 import { DataProvider } from '@/data/data-context';
 import { DATABASE_NAME, migrate } from '@/data/db';
@@ -31,6 +32,7 @@ export default function RootLayout() {
     <ThemeProvider value={navTheme}>
       <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrate}>
         <DataProvider>
+          <LiveAppIcon />
           <Stack
             screenOptions={{
               headerShown: false,

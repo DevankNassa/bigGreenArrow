@@ -4,11 +4,11 @@
     "slug": "big-green-arrow",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/app-icons/calibrating.png",
     "scheme": "biggreenarrow",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/app-icons/calibrating.png",
       "bundleIdentifier": "com.devanknassa.biggreenarrow",
       "config": {
         "usesNonExemptEncryption": false
@@ -16,9 +16,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
+        "backgroundColor": "#111111",
+        "foregroundImage": "./assets/app-icons/calibrating-foreground.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
@@ -38,7 +37,108 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-alternate-app-icons",
+        [
+          {
+            "name": "Steady",
+            "ios": "./assets/app-icons/steady.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/steady-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "OnTarget",
+            "ios": "./assets/app-icons/on-target.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/on-target-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "OptimalDown",
+            "ios": "./assets/app-icons/optimal-down.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/optimal-down-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "OptimalUp",
+            "ios": "./assets/app-icons/optimal-up.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/optimal-up-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "TooFastDown",
+            "ios": "./assets/app-icons/too-fast-down.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/too-fast-down-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "TooFastUp",
+            "ios": "./assets/app-icons/too-fast-up.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/too-fast-up-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "SlowDown",
+            "ios": "./assets/app-icons/slow-down.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/slow-down-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "SlowUp",
+            "ios": "./assets/app-icons/slow-up.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/slow-up-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "DriftingDown",
+            "ios": "./assets/app-icons/drifting-down.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/drifting-down-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "DriftingUp",
+            "ios": "./assets/app-icons/drifting-up.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/drifting-up-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "WrongWayDown",
+            "ios": "./assets/app-icons/wrong-way-down.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/wrong-way-down-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          },
+          {
+            "name": "WrongWayUp",
+            "ios": "./assets/app-icons/wrong-way-up.png",
+            "android": {
+              "foregroundImage": "./assets/app-icons/wrong-way-up-foreground.png",
+              "backgroundColor": "#111111"
+            }
+          }
+        ]
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

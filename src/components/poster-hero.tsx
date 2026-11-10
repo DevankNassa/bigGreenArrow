@@ -47,15 +47,15 @@ const HIT1 = 620;
 const HIT2 = 1150;
 const SNAP = 1500;
 
-/** When the headline starts stamping in: after the slab breaks, the arrow sticks or the color snaps. */
-const STAMP_AT: Record<HeroMotion, number> = { enter: 300, smash_down: 1300, smash_up: 1300, stamp: 700, brake: 1700 };
+/** When the headline starts fading in: after the slab breaks, the arrow sticks or the color snaps. */
+const TEXT_AT: Record<HeroMotion, number> = { enter: 300, smash_down: 1300, smash_up: 1300, stamp: 700, brake: 1700 };
 
 /** When a celebrating hero's fire catches: once the arrow has come to rest. */
 const IGNITE_AT: Record<HeroMotion, number> = { enter: 600, smash_down: 1350, smash_up: 1350, stamp: 800, brake: 0 };
 
 /** When the hero's headline has landed; the stats below rise in from here. */
 export function heroSettleMs(motion: HeroMotion): number {
-  return STAMP_AT[motion] + 400;
+  return TEXT_AT[motion] + 400;
 }
 
 const HAPTICS: Record<HeroMotion, readonly (readonly [number, HapticBeat])[]> = {
@@ -124,7 +124,7 @@ type PosterHeroProps = {
 
 /**
  * The Poster home screen's hero: a full-bleed block in the arrow's tone with a
- * flat arrow and a stamped uppercase headline. Mount it with a `key` that
+ * flat arrow and a big uppercase headline. Mount it with a `key` that
  * changes with the state to replay its motion.
  */
 export function PosterHero({
@@ -306,7 +306,7 @@ export function PosterHero({
   const headlineSize = Math.min(celebrating ? 60 : 56, (width - 48) / ((Math.max(...lines.map((l) => l.length)) + 1) * 0.8));
   const lineHeight = headlineSize * (celebrating ? 0.86 : 0.92);
   const textColor = { color: palette.text };
-  const stampAt = animate ? STAMP_AT[motion] : 0;
+  const textAt = animate ? TEXT_AT[motion] : 0;
 
   return (
     <View style={[styles.hero, { height: heroH, backgroundColor: theme.background }]}>
@@ -354,25 +354,25 @@ export function PosterHero({
         accessibilityRole="header"
         accessibilityLabel={accessibilityLabel}>
         {chip && (
-          <Stamp delay={stampAt} animate={animate} fade>
+          <FadeIn delay={textAt} animate={animate}>
             <View style={[styles.chip, { backgroundColor: palette.wash }]}>
               <ChipGlyph icon={chip.icon} color={palette.text} />
               <Text style={[styles.chipText, textColor]}>{chip.label}</Text>
             </View>
-          </Stamp>
+          </FadeIn>
         )}
         <View>
           {lines.map((line, i) => (
-            <Stamp key={i} delay={stampAt + i * 200} animate={animate}>
+            <FadeIn key={i} delay={textAt + i * 200} animate={animate}>
               <Text style={[styles.headlineText, textColor, { fontSize: headlineSize, lineHeight }]}>
                 {line}
                 <Text style={celebrating ? { color: HeroAccent } : undefined}>{i === lines.length - 1 ? '.' : ''}</Text>
               </Text>
-            </Stamp>
+            </FadeIn>
           ))}
         </View>
         {rateLine ? (
-          <Stamp delay={stampAt + lines.length * 200} animate={animate} fade>
+          <FadeIn delay={textAt + lines.length * 200} animate={animate}>
             <View style={styles.rateLine}>
               <Text style={[styles.rate, textColor]}>{rateLine.rate}</Text>
               <Text style={styles.rateUnit}>a week</Text>
@@ -380,12 +380,12 @@ export function PosterHero({
                 {rateLine.detail}
               </Text>
             </View>
-          </Stamp>
+          </FadeIn>
         ) : (
           subline && (
-            <Stamp delay={stampAt + lines.length * 200} animate={animate}>
+            <FadeIn delay={textAt + lines.length * 200} animate={animate}>
               <Text style={[styles.subline, textColor]}>{subline}</Text>
-            </Stamp>
+            </FadeIn>
           )
         )}
       </View>
@@ -431,7 +431,7 @@ export function PosterHero({
       </Animated.View>
 
       {nav && (
-        <Stamp delay={animate ? heroSettleMs(motion) : 0} animate={animate} fade style={[styles.nav, { top: topInset + 12 }]}>
+        <FadeIn delay={animate ? heroSettleMs(motion) : 0} animate={animate} style={[styles.nav, { top: topInset + 12 }]}>
           {nav.onHistory ? (
             <RoundButton label="History" wash={palette.wash} onPress={nav.onHistory}>
               <BarsIcon color={palette.text} />
@@ -442,7 +442,7 @@ export function PosterHero({
           <RoundButton label="Settings" wash={palette.wash} onPress={nav.onSettings}>
             <SlidersIcon color={palette.text} knob={palette.block} />
           </RoundButton>
-        </Stamp>
+        </FadeIn>
       )}
     </View>
   );
@@ -499,30 +499,24 @@ function heroLayout(width: number, height: number, topInset: number, celebrating
   };
 }
 
-/** Scales in hard from 1.9×, like a rubber stamp; or just fades with `fade`. */
-function Stamp({
+/** Fades in after `delay` ms. */
+function FadeIn({
   delay,
   animate,
-  fade = false,
   style,
   children,
 }: {
   delay: number;
   animate: boolean;
-  fade?: boolean;
   style?: StyleProp<ViewStyle>;
   children: ReactNode;
 }) {
   const p = useSharedValue(animate ? 0 : 1);
   useEffect(() => {
-    if (!animate) return;
-    p.set(withDelay(delay, fade ? withTiming(1, { duration: 250 }) : withSpring(1, { damping: 11, stiffness: 260 })));
-  }, [animate, delay, fade, p]);
-  const anim = useAnimatedStyle(() => ({
-    opacity: Math.min(1, p.get() * 3),
-    transform: fade ? [] : [{ scale: 1.9 - 0.9 * p.get() }],
-  }));
-  return <Animated.View style={[styles.stamp, style, anim]}>{children}</Animated.View>;
+    if (animate) p.set(withDelay(delay, withTiming(1, { duration: 250 })));
+  }, [animate, delay, p]);
+  const anim = useAnimatedStyle(() => ({ opacity: p.get() }));
+  return <Animated.View style={[style, anim]}>{children}</Animated.View>;
 }
 
 /** A black slab split where the arrow hits; it cracks, then its halves fall away. */
@@ -679,9 +673,6 @@ const styles = StyleSheet.create({
     fontFamily: Type.semiBold,
     fontSize: 13,
     color: 'rgba(255,255,255,0.75)',
-  },
-  stamp: {
-    transformOrigin: 'left bottom',
   },
   headlineText: {
     fontFamily: Type.display,

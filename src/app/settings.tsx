@@ -1,11 +1,12 @@
 import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { GoalFields } from '@/components/goal-fields';
+import { canUseLiveIcon } from '@/components/live-app-icon';
 import { PaceEditor } from '@/components/pace-editor';
 import { Segmented } from '@/components/segmented';
 import { Stepper } from '@/components/stepper';
@@ -51,7 +52,7 @@ function paceChanged(saved: Goal, next: Goal): boolean {
 }
 
 export default function SettingsScreen() {
-  const { weighIns, preferences, setPreferences, deleteAllData } = useData();
+  const { weighIns, preferences, setPreference, setPreferences, deleteAllData } = useData();
   const saved: Draft = { unit: preferences.unit, goal: preferences.goal, trend: preferences.trend };
 
   const [draft, setDraft] = useState<Draft>(saved);
@@ -201,6 +202,27 @@ export default function SettingsScreen() {
             />
           </Section>
 
+          {canUseLiveIcon && (
+            <Section title="App icon">
+              <View style={styles.switchRow}>
+                <ThemedText style={styles.switchLabel}>Live app icon</ThemedText>
+                <Switch
+                  value={preferences.liveAppIcon}
+                  onValueChange={(on) => setPreference('liveAppIcon', on)}
+                  accessibilityLabel="Live app icon"
+                />
+              </View>
+              <ThemedText type="small" themeColor="textSecondary">
+                Your app icon shows your arrow, so you can see how you’re doing from the home screen.
+                It changes when you open the app, not in the background.
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">
+                iOS shows a short popup each time the icon changes. That’s an iOS rule and can’t be
+                turned off. Turn this off to keep the hourglass icon.
+              </ThemedText>
+            </Section>
+          )}
+
           <Section title="Data">
             <ThemedText type="small" themeColor="textSecondary">
               Everything is stored only on this device.
@@ -302,6 +324,15 @@ const styles = StyleSheet.create({
   },
   labeled: {
     gap: Spacing.two,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  switchLabel: {
+    flexShrink: 1,
   },
   footer: {
     textAlign: 'center',
