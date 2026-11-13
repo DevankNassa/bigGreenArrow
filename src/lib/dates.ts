@@ -40,3 +40,15 @@ export function localIsoTimestamp(d: Date = new Date()): string {
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
   return `${localIsoDate(d)}T${time}${sign}${pad(offsetMin / 60)}:${pad(offsetMin % 60)}`;
 }
+
+/**
+ * ISO 8601 timestamp of `d` as seen at a fixed UTC offset (minutes east of UTC),
+ * e.g. the offset a Health Connect record was recorded in.
+ */
+export function isoTimestampAtOffset(d: Date, offsetMin: number): string {
+  const at = new Date(d.getTime() + offsetMin * 60_000);
+  const date = `${at.getUTCFullYear()}-${pad(at.getUTCMonth() + 1)}-${pad(at.getUTCDate())}`;
+  const time = `${pad(at.getUTCHours())}:${pad(at.getUTCMinutes())}:${pad(at.getUTCSeconds())}`;
+  const sign = offsetMin >= 0 ? '+' : '-';
+  return `${date}T${time}${sign}${pad(offsetMin / 60)}:${pad(offsetMin % 60)}`;
+}

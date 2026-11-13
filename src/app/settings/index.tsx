@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
+import { HealthSettings } from '@/components/health-settings';
 import { canUseLiveIcon } from '@/components/live-app-icon';
 import { ScreenHeader } from '@/components/screen-header';
 import { SettingsGroup, SettingsRow, SettingsSwitch } from '@/components/settings-row';
@@ -81,6 +82,8 @@ export default function SettingsScreen() {
             />
           </SettingsGroup>
 
+          <HealthSettings />
+
           <SettingsGroup title="App">
             {canUseLiveIcon && (
               <SettingsSwitch
@@ -108,7 +111,8 @@ export default function SettingsScreen() {
             <SettingsRow label="Delete all data" destructive onPress={() => setConfirmingDelete(true)} />
           </SettingsGroup>
           <ThemedText type="small" themeColor="textSecondary">
-            Everything is stored only on this device.
+            Everything is stored only on this device. Deleting here doesn’t touch Apple Health or Health
+            Connect.
           </ThemedText>
 
           <ThemedText type="small" themeColor="textSecondary" style={[styles.footer, { borderTopColor: theme.backgroundSelected }]}>

@@ -1,6 +1,7 @@
 import { randomUUID } from 'expo-crypto';
 
 import type { WeighIn, WeighInSource } from '@/engine';
+import type { HealthPlan } from '@/health/merge';
 
 import type { Db } from './db';
 
@@ -59,6 +60,33 @@ export async function updateWeighIn(db: Db, w: WeighIn): Promise<void> {
 
 export async function deleteWeighIn(db: Db, id: string): Promise<void> {
   await db.runAsync('DELETE FROM weigh_ins WHERE id = ?', [id]);
+}
+
+/** Records (or with `null`, forgets) the Health sample a manual weigh-in was written to. */
+export async function linkExternalId(db: Db, id: string, externalId: string | null): Promise<void> {
+  await db.runAsync('UPDATE weigh_ins SET external_id = ? WHERE id = ?', [externalId, id]);
+}
+
+/** Applies a Health sync plan in one transaction, so a failed sync changes nothing. */
+export async function applyHealthPlan(db: Db, plan: HealthPlan): Promise<void> {
+  await db.execAsync('BEGIN');
+  try {
+    for (const w of plan.inserts) await insertWeighIn(db, w);
+    for (const w of plan.updates) {
+      await db.runAsync('UPDATE weigh_ins SET timestamp = ?, weight_kg = ?, origin_app = ? WHERE id = ?', [
+        w.timestamp,
+        w.weightKg,
+        w.originApp ?? null,
+        w.id,
+      ]);
+    }
+    for (const id of plan.deletes) await deleteWeighIn(db, id);
+    for (const id of plan.unlinks) await linkExternalId(db, id, null);
+    await db.execAsync('COMMIT');
+  } catch (e) {
+    await db.execAsync('ROLLBACK');
+    throw e;
+  }
 }
 
 export function newManualWeighIn(fields: { timestamp: string; weightKg: number; note?: string }): WeighIn {

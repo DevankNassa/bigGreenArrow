@@ -9,6 +9,18 @@ import {
 
 import type { Db } from './db';
 
+/** Apple Health / Health Connect sync (SPEC §8). */
+export interface HealthPreferences {
+  /** Read weight from Health. Turned on by connecting, off by the user or when permission goes away. */
+  read: boolean;
+  /** Also save manual weigh-ins to Health. */
+  writeBack: boolean;
+  /** HealthKit anchor or Health Connect changes token; unset means the next sync reads everything. */
+  syncToken?: string;
+  /** ISO timestamp of the last successful sync. */
+  lastSyncAt?: string;
+}
+
 export interface Preferences {
   /** False until onboarding is finished; the home screen redirects there. */
   onboarded: boolean;
@@ -19,6 +31,7 @@ export interface Preferences {
   liveAppIcon: boolean;
   /** Leave the day's scale reading off the home screen; the trend still shows. */
   hideScaleWeight: boolean;
+  health: HealthPreferences;
 }
 
 /** Starting values; onboarding has the user choose their own goal and pace (SPEC §7.6). */
@@ -35,6 +48,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   trend: DEFAULT_TREND_SETTINGS,
   liveAppIcon: false,
   hideScaleWeight: false,
+  health: { read: false, writeBack: true },
 };
 
 type Key = keyof Preferences;

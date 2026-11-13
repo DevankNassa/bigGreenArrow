@@ -1,6 +1,6 @@
 import { localDate } from '@/engine';
 
-import { addDays, atTimeOf, localIsoDate, localIsoTimestamp } from '../dates';
+import { addDays, atTimeOf, isoTimestampAtOffset, localIsoDate, localIsoTimestamp } from '../dates';
 
 describe('localIsoTimestamp', () => {
   const d = new Date(2026, 9, 21, 7, 5, 9); // local time
@@ -33,5 +33,20 @@ describe('atTimeOf', () => {
     const at = atTimeOf('2026-10-19', now);
     expect(localIsoDate(at)).toBe('2026-10-19');
     expect([at.getHours(), at.getMinutes()]).toEqual([7, 30]);
+  });
+});
+
+describe('isoTimestampAtOffset', () => {
+  const instant = new Date('2026-11-10T06:30:00Z');
+
+  it('writes the wall-clock time at that offset', () => {
+    expect(isoTimestampAtOffset(instant, 60)).toBe('2026-11-10T07:30:00+01:00');
+    expect(isoTimestampAtOffset(instant, -480)).toBe('2026-11-09T22:30:00-08:00');
+    expect(isoTimestampAtOffset(instant, 330)).toBe('2026-11-10T12:00:00+05:30');
+    expect(isoTimestampAtOffset(instant, -150)).toBe('2026-11-10T04:00:00-02:30');
+  });
+
+  it('round-trips to the same instant', () => {
+    expect(Date.parse(isoTimestampAtOffset(instant, -480))).toBe(instant.getTime());
   });
 });

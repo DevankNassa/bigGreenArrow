@@ -18,20 +18,21 @@ import { newManualWeighIn } from '@/data/weigh-ins';
 import { analyze, needsPaceWarning, validateGoal, type Goal, type WeightUnit } from '@/engine';
 import { useTheme } from '@/hooks/use-theme';
 import { localIsoDate, localIsoTimestamp } from '@/lib/dates';
+import { importedSummary } from '@/lib/health-labels';
 import { GOAL_ERROR_MESSAGES, capPace, paceWarning } from '@/lib/pace';
 
-const STEPS = ['intro', 'units', 'goal', 'pace'] as const;
-type Step = (typeof STEPS)[number];
+const ALL_STEPS = ['intro', 'health', 'units', 'goal', 'pace'] as const;
+type Step = (typeof ALL_STEPS)[number];
 
 const UNIT_OPTIONS = [
   { value: 'kg', label: 'Kilograms (kg)' },
   { value: 'lb', label: 'Pounds (lb)' },
 ] as const;
 
-/** First-run setup (SPEC §7.6). Health and reminders join once those features exist. */
+/** First-run setup (SPEC §7.6). Reminders join once that feature exists. */
 export default function OnboardingScreen() {
   const theme = useTheme();
-  const { weighIns, preferences, setPreferences, addWeighIn } = useData();
+  const { weighIns, preferences, setPreferences, addWeighIn, healthSync, connectHealth } = useData();
 
   const [step, setStep] = useState<Step>('intro');
   const [unit, setUnit] = useState<WeightUnit>(preferences.unit);
@@ -41,6 +42,18 @@ export default function OnboardingScreen() {
   const [targetValid, setTargetValid] = useState(true);
   const [confirmingPace, setConfirmingPace] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [healthResult, setHealthResult] = useState<string | null>(null);
+
+  // The Health step only appears where there's a health store to connect to.
+  const STEPS = ALL_STEPS.filter((s) => s !== 'health' || (healthSync.name && healthSync.available !== false));
+  const healthName = healthSync.name ?? '';
+  const healthConnected = preferences.health.read;
+
+  async function connect() {
+    setHealthResult(null);
+    const imported = await connectHealth();
+    if (imported !== null) setHealthResult(importedSummary(imported, healthName));
+  }
 
   // Existing users already have a trend to translate the pace with.
   const trendKg = analyze(weighIns, goal, preferences.trend, localIsoDate()).latest?.trendKg;
@@ -103,6 +116,30 @@ export default function OnboardingScreen() {
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
                 Not medical advice. Talk to a healthcare professional before starting a diet.
+              </ThemedText>
+            </View>
+          )}
+
+          {step === 'health' && (
+            <View style={styles.section}>
+              <ThemedText type="subtitle">Connect {healthName}</ThemedText>
+              <ThemedText themeColor="textSecondary">
+                Big Green Arrow can read your weight from {healthName}, so weigh-ins from a smart scale or
+                other apps show up on their own and your past history gives the trend a head start. It
+                only reads body weight, and it never leaves your phone.
+              </ThemedText>
+              <Button
+                label={
+                  healthSync.syncing ? 'Connecting…' : healthConnected ? 'Connected' : `Connect ${healthName}`
+                }
+                variant={healthConnected ? 'secondary' : 'primary'}
+                disabled={healthSync.syncing || healthConnected}
+                onPress={connect}
+              />
+              {healthResult && <ThemedText themeColor="textSecondary">{healthResult}</ThemedText>}
+              {healthSync.error && <ThemedText style={styles.error}>{healthSync.error}</ThemedText>}
+              <ThemedText type="small" themeColor="textSecondary">
+                You can skip this and connect later in Settings.
               </ThemedText>
             </View>
           )}
@@ -179,7 +216,15 @@ export default function OnboardingScreen() {
             <View />
           )}
           <Button
-            label={step === 'intro' ? 'Get started' : step === 'pace' ? 'Finish' : 'Continue'}
+            label={
+              step === 'intro'
+                ? 'Get started'
+                : step === 'pace'
+                  ? 'Finish'
+                  : step === 'health' && !healthConnected
+                    ? 'Skip'
+                    : 'Continue'
+            }
             disabled={!canContinue}
             onPress={next}
           />
