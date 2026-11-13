@@ -33,6 +33,9 @@ jobs:
 
       - run: npm ci
 
+      # Fails fast if Expo's prebuilt frameworks disagree (launch crash in build 3).
+      - run: ./scripts/check-ios-prebuilds.sh
+
       # Generates ios/ from app.json and runs `pod install`.
       - name: Generate the iOS project
         run: npx expo prebuild --platform ios --clean

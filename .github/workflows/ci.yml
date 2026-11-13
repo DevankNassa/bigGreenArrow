@@ -20,3 +20,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test -- --ci
+      # A mismatch here links fine but crashes the iOS app at launch.
+      - run: ./scripts/check-ios-prebuilds.sh
