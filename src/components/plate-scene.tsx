@@ -46,15 +46,18 @@ const easeInOut = Easing.bezierFn(0.42, 0, 0.58, 1);
  * A CSS-style keyframe track: holds the first value before the first key and
  * the last after the last. A key's `ease` shapes the segment that starts at it.
  */
-export function track(t: number, keys: readonly Key[], fallback: Ease = ease): number {
+export function track(t: number, keys: readonly Key[], fallback?: Ease): number {
   'worklet';
+  // Not a default parameter (`fallback = ease`): on the UI thread, outside
+  // values only exist inside the body, so a default that reads one throws.
+  const easing = fallback ?? ease;
   if (t <= keys[0][0]) return keys[0][1];
   for (let i = 1; i < keys.length; i++) {
     const [b, vb] = keys[i];
     if (t <= b) {
       const [a, va, e] = keys[i - 1];
       const p = b === a ? 1 : (t - a) / (b - a);
-      return va + (vb - va) * (e ?? fallback)(p);
+      return va + (vb - va) * (e ?? easing)(p);
     }
   }
   return keys[keys.length - 1][1];

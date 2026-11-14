@@ -13,14 +13,26 @@ the provisioning profile and the App Store Connect app are new.
 
 Developer portal (https://developer.apple.com/account):
 - [ ] Identifiers → **+** → App IDs → App → Bundle ID (explicit)
-      `com.devanknassa.biggreenarrow`. No extra capabilities needed.
+      `com.devanknassa.biggreenarrow`, with the **HealthKit** capability
+      checked (Apple Health sync needs it; leave Clinical Health Records
+      and Background Delivery off).
 - [ ] Profiles → **+** → Distribution *App Store Connect* → that app ID →
       the existing Apple Distribution certificate → name it
       `Big Green Arrow App Store` → download it into `~/ios-signing`.
 
+If the app ID was created before Health sync (November 2026): Identifiers →
+`com.devanknassa.biggreenarrow` → check **HealthKit** → Save. That
+invalidates the profile, so in Profiles open `Big Green Arrow App Store` →
+Edit → Save → Download, then update `IOS_PROFILE_BASE64` (command below).
+Without this the build fails at signing with a missing
+`com.apple.developer.healthkit` entitlement.
+
 App Store Connect (https://appstoreconnect.apple.com):
 - [ ] Apps → **+** New App → iOS, name "Big Green Arrow", language, bundle
       ID `com.devanknassa.biggreenarrow`, SKU (any string, e.g. `biggreenarrow`).
+- [ ] **To do before the first App Review submission:** App Information →
+      **Privacy Policy URL**. Apple requires one from apps that use
+      HealthKit. Internal TestFlight builds work without it.
 
 GitHub secrets (run in `~/ios-signing`, from this repo's folder or with `-R DevankNassa/bigGreenArrow`):
 ```sh

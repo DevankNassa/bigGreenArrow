@@ -10,6 +10,9 @@ import { Colors, Type } from '@/constants/theme';
 import { DataProvider } from '@/data/data-context';
 import { DATABASE_NAME, migrate } from '@/data/db';
 
+/** Catches a screen that throws while rendering, so the app shows a message instead of closing. */
+export { ScreenError as ErrorBoundary } from '@/components/screen-error';
+
 export default function RootLayout() {
   const colorScheme = useColorScheme();
   const [fontsLoaded, fontError] = useFonts({

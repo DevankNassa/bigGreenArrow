@@ -10,7 +10,7 @@ A free, open-source weight tracker that ignores the day-to-day noise of the scal
 
 No accounts, no ads, no servers. Your data stays on your phone. See [SPEC.md](SPEC.md) for the full product spec.
 
-> **Status:** early development. You can set up your goal and pace in onboarding, log weigh-ins, see your trend and animated arrow, and edit, exclude or delete past entries in History. Settings let you change your goal and pace later. Apple Health / Health Connect sync is next.
+> **Status:** early development. You can set up your goal and pace in onboarding, log weigh-ins, see your trend and animated arrow, and edit, exclude or delete past entries in History. Settings let you change your goal and pace later. Weigh-ins sync from Apple Health / Health Connect, and manual entries can be saved back. Reminders are next.
 
 ## Development
 
@@ -24,6 +24,8 @@ npm run lint
 npx expo start      # dev server: press a for Android, w for web, or scan the QR code with Expo Go
 ```
 
+Health sync uses native modules that aren't in Expo Go. To try it, use a development build (`npx expo run:ios` / `npx expo run:android`) or a TestFlight build.
+
 The web build is only for development. It stores data in the browser with SQLite compiled to WebAssembly, which is why `metro.config.js` sets cross-origin isolation headers.
 
 ### Project layout
@@ -33,6 +35,7 @@ The web build is only for development. It stores data in the browser with SQLite
 | `src/engine/` | The trend and arrow engine: pure TypeScript, no React or native imports. Weigh-ins + settings → trend, rate, arrow state |
 | `src/app/` | Screens (Expo Router) |
 | `src/data/` | On-device storage: SQLite schema and migrations, weigh-ins, preferences |
+| `src/health/` | Apple Health / Health Connect sync: one adapter per platform, plus the merge rules (dedupe, deletions, write-back) |
 | `src/lib/` | Small app helpers: dates, weight input parsing, labels |
 | `src/components/` | UI components, including the arrow |
 | `src/demo/` | Sample histories for trying the arrow |
