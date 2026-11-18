@@ -86,14 +86,22 @@ export function analyze(
     return line && lineRate(line, p.trendKg);
   });
 
-  const firstWithRate = rates.findIndex((r) => r !== null);
+  // A gap longer than the lookback leaves the first weigh-in after it without a
+  // rate (one point in the window). Each unbroken run of rates gets its own
+  // arrow history, so the arrow starts fresh after a long break.
   const states: (ArrowState | null)[] = trend.map(() => null);
-  if (firstWithRate >= 0) {
-    const measured = trend.slice(firstWithRate).map((p, i) => ({
-      ratePct: rates[firstWithRate + i]!.pctPerWeek,
-      trendKg: p.trendKg,
-    }));
-    resolveStates(goal, measured).forEach((s, i) => (states[firstWithRate + i] = s));
+  for (let start = 0; start < trend.length; ) {
+    if (!rates[start]) {
+      start++;
+      continue;
+    }
+    let end = start;
+    while (end + 1 < trend.length && rates[end + 1]) end++;
+    const measured = trend
+      .slice(start, end + 1)
+      .map((p, i) => ({ ratePct: rates[start + i]!.pctPerWeek, trendKg: p.trendKg }));
+    resolveStates(goal, measured).forEach((s, i) => (states[start + i] = s));
+    start = end + 1;
   }
 
   const series = trend.map((p, i) => ({ ...p, rate: rates[i], state: states[i] }));

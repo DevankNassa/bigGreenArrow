@@ -18,6 +18,22 @@ const steadyLoss = series(START, 56, (i) => 90 - 0.09 * i + noise(i));
 const lastDay = addDays(START, 55);
 
 describe('analyze', () => {
+  it('survives a break longer than the lookback (imported Health history)', () => {
+    const afterBreak = addDays(lastDay, 40);
+    const withBreak = [...steadyLoss, weighIn(afterBreak, 85.5)];
+    const a = analyze(withBreak, loseGoal, settings, afterBreak);
+
+    const last = a.series[a.series.length - 1];
+    expect(last.rate).toBeNull();
+    expect(last.state).toBeNull();
+    expect(a.arrow).toBeNull();
+
+    // The next weigh-in starts a new arrow history from scratch.
+    const next = addDays(afterBreak, 1);
+    const resumed = analyze([...withBreak, weighIn(next, 85.4)], loseGoal, settings, next);
+    expect(resumed.series[resumed.series.length - 1].state).not.toBeNull();
+  });
+
   it('handles no data', () => {
     const a = analyze([], loseGoal, settings, START);
     expect(a.latest).toBeNull();

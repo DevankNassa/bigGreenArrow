@@ -1,12 +1,13 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Switch, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { WeightKeypad } from '@/components/weight-keypad';
 import { MaxContentWidth, Spacing, ToneColors } from '@/constants/theme';
 import { useData } from '@/data/data-context';
 import { newManualWeighIn } from '@/data/weigh-ins';
@@ -21,7 +22,9 @@ import {
   formatWeight,
   formatWeightValue,
   parseWeightInput,
+  pressWeightKey,
   stepWeightInput,
+  type WeightKey,
 } from '@/lib/weight-input';
 
 function mostRecent(weighIns: WeighIn[]): WeighIn | undefined {
@@ -68,6 +71,9 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
     return from ? formatWeightValue(from.weightKg, unit) : '';
   });
   const [text, setText] = useState(initialText);
+  // The shown weight counts as selected until a key is pressed, so typing replaces it.
+  const [fresh, setFresh] = useState(initialText !== '');
+  const [noteFocused, setNoteFocused] = useState(false);
   const [date, setDate] = useState(existing ? localDate(existing.timestamp) : today);
   const [note, setNote] = useState(existing?.note ?? '');
   const [excluded, setExcluded] = useState(existing?.excluded ?? false);
@@ -86,6 +92,8 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
   const bigJump =
     editable && !excluded && kg !== null && !problem && trendKg !== undefined && isLikelyOutlier(kg, trendKg);
   const canSave = kg !== null && !problem && !saving;
+  // "8" on the way to "82.4" isn't too low yet: hold that error until more digits could follow.
+  const stillTyping = problem === 'too_low' && !text.includes('.') && text.length < 3;
 
   async function run(action: () => Promise<void>, failure: string) {
     setSaving(true);
@@ -130,8 +138,39 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
 
   const step = (delta: number) => {
     const next = stepWeightInput(text, delta);
-    if (next !== null) setText(next);
+    if (next === null) return;
+    setText(next);
+    setFresh(true);
   };
+
+  const press = (key: WeightKey) => {
+    setText(pressWeightKey(text, key, fresh));
+    setFresh(false);
+  };
+
+  const clear = () => {
+    setText('');
+    setFresh(false);
+  };
+
+  // The keypad gives way to the system keyboard while the note is being typed.
+  const showKeypad = editable && !noteFocused;
+
+  // On web, typing on a physical keyboard drives the keypad too.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !showKeypad) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === 'Enter') return save();
+      const key: WeightKey | null =
+        e.key === 'Backspace' ? 'back' : e.key === ',' ? '.' : /^[0-9.]$/.test(e.key) ? (e.key as WeightKey) : null;
+      if (key === null) return;
+      e.preventDefault();
+      press(key);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  });
 
   return (
     <ThemedView style={styles.container}>
@@ -142,24 +181,32 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
           <Button label={bigJump ? 'Save anyway' : 'Save'} variant="plain" disabled={!canSave} onPress={save} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={styles.body}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets>
           <View style={styles.weightRow}>
             {editable && (
               <Button label="−" variant="secondary" accessibilityLabel="Decrease by 0.1" onPress={() => step(-0.1)} />
             )}
-            <TextInput
-              value={text}
-              onChangeText={setText}
-              onSubmitEditing={save}
-              editable={editable}
-              autoFocus={!existing}
-              keyboardType="decimal-pad"
-              returnKeyType="done"
-              placeholder="0.0"
-              placeholderTextColor={theme.textSecondary}
-              accessibilityLabel={`Weight in ${unit}`}
-              style={[styles.weightInput, { color: theme.text }]}
-            />
+            <Pressable
+              disabled={!editable}
+              onPress={() => Keyboard.dismiss()}
+              accessibilityRole="text"
+              accessibilityLabel={`Weight, ${text === '' ? 'empty' : text} ${unit}`}
+              accessibilityLiveRegion="polite"
+              style={styles.weightDisplay}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                style={[
+                  styles.weightText,
+                  { color: text === '' ? theme.textSecondary : theme.text },
+                  fresh && editable && { backgroundColor: theme.backgroundSelected },
+                ]}>
+                {text === '' ? '0.0' : text}
+              </Text>
+            </Pressable>
             {editable && (
               <Button label="+" variant="secondary" accessibilityLabel="Increase by 0.1" onPress={() => step(0.1)} />
             )}
@@ -174,7 +221,7 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
             </ThemedText>
           )}
           {text !== '' && value === null && <ThemedText style={styles.error}>Enter a number, like 82.4</ThemedText>}
-          {problem && (
+          {problem && !stillTyping && (
             <ThemedText style={styles.error}>
               Weight must be between {formatWeight(MIN_WEIGHT_KG, unit)} and {formatWeight(MAX_WEIGHT_KG, unit)}
             </ThemedText>
@@ -210,6 +257,8 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
           <TextInput
             value={note}
             onChangeText={setNote}
+            onFocus={() => setNoteFocused(true)}
+            onBlur={() => setNoteFocused(false)}
             placeholder="Note (optional)"
             placeholderTextColor={theme.textSecondary}
             accessibilityLabel="Note"
@@ -240,6 +289,13 @@ function WeighInForm({ existing }: { existing?: WeighIn }) {
             />
           )}
         </ScrollView>
+
+        {showKeypad && (
+          <View style={styles.keypad}>
+            <WeightKeypad onKey={press} onClear={clear} />
+            <Button label={bigJump ? 'Save anyway' : 'Save'} disabled={!canSave} onPress={save} />
+          </View>
+        )}
 
         <ConfirmDialog
           visible={confirmingDelete}
@@ -296,13 +352,25 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
     marginTop: Spacing.five,
   },
-  weightInput: {
+  weightDisplay: {
+    width: 190,
+    alignItems: 'center',
+  },
+  weightText: {
     fontSize: 64,
+    lineHeight: 76,
     fontWeight: 600,
     textAlign: 'center',
-    // Explicit width: on web an input's default width grows with font size.
-    width: 190,
     fontVariant: ['tabular-nums'],
+    paddingHorizontal: Spacing.two,
+    borderRadius: Spacing.two,
+    overflow: 'hidden',
+  },
+  keypad: {
+    gap: Spacing.three,
+    paddingHorizontal: Spacing.three,
+    paddingTop: Spacing.two,
+    paddingBottom: Spacing.three,
   },
   center: {
     textAlign: 'center',

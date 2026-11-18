@@ -30,7 +30,10 @@ export function haptic(beat: HapticBeat): void {
         rigid: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Rigid),
         warning: () => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning),
       }[beat];
-  run().catch(() => {});
+  // Guard sync throws and non-promise returns too: a failed haptic must never break the press it decorates.
+  try {
+    Promise.resolve(run()).catch(() => {});
+  } catch {}
 }
 
 /** Plays haptic beats at millisecond offsets; returns a cancel function. */

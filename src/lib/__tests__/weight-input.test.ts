@@ -2,6 +2,7 @@ import {
   checkWeightKg,
   formatWeight,
   parseWeightInput,
+  pressWeightKey,
   stepWeightInput,
 } from '../weight-input';
 
@@ -45,5 +46,37 @@ describe('stepWeightInput', () => {
 
   it('does nothing for text that is not a number', () => {
     expect(stepWeightInput('', 0.1)).toBeNull();
+  });
+});
+
+describe('pressWeightKey', () => {
+  const type = (keys: string, start = '') =>
+    [...keys].reduce((text, k) => pressWeightKey(text, (k === '<' ? 'back' : k) as never), start);
+
+  it('builds a weight digit by digit', () => {
+    expect(type('82.4')).toBe('82.4');
+    expect(type('182.4')).toBe('182.4');
+  });
+
+  it('replaces a selected value on the first press', () => {
+    expect(pressWeightKey('82.4', '8', true)).toBe('8');
+    expect(pressWeightKey('82.4', '.', true)).toBe('0.');
+    expect(pressWeightKey('82.4', 'back', true)).toBe('');
+  });
+
+  it('deletes one character at a time', () => {
+    expect(type('<', '82.4')).toBe('82.');
+    expect(type('<<<<<', '82.4')).toBe('');
+  });
+
+  it('allows one point and one decimal', () => {
+    expect(type('82..4')).toBe('82.4');
+    expect(type('82.45')).toBe('82.4');
+  });
+
+  it('caps whole digits at three and drops a leading zero', () => {
+    expect(type('1824')).toBe('182');
+    expect(type('08')).toBe('8');
+    expect(type('.5')).toBe('0.5');
   });
 });

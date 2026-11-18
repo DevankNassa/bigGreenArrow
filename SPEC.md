@@ -248,7 +248,7 @@ The arrow needs enough data before it can mean anything.
 
 Settings changes are collected in a draft and saved with a **Save changes** button, so goal validation and the over-1% warning (§7.5.2) run once, on save. The warning comes back only when the fastest pace or the goal type changed.
 
-**Built so far:** Goal, Pace (preset chips), Arrow zones (vertical slider), Trend, Units, Delete all data. **Still to come:** Hide scale weight and Celebrations (after the arrow animation work), Reminders, Health, CSV import/export.
+**Built so far:** Goal, Pace (preset chips), Arrow zones (vertical slider), Trend, Units, Hide scale weight, Health, Export CSV, Delete all data. **Still to come:** Celebrations, Reminders, CSV import.
 | **Health** | Read weight from Apple Health / Health Connect | on if permission granted |
 | | Write manual entries back to Health | on |
 | | Re-import full history | (action) |
@@ -272,7 +272,7 @@ If the optimal **max** is set above **1.0% BW/week in either direction** (lose o
 ### 7.6 Onboarding (short steps)
 Units come before the goal, because the target weight is typed in the user's unit.
 1. "The scale lies day to day. The trend doesn't." (short explanation, plus the "not medical advice" note)
-2. **Connect Health** *(once Health sync exists)*. Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
+2. **Connect Health** (skipped where there is no health store, e.g. web or iPad). Ask for Apple Health / Health Connect permission to read weight. If the user grants it, import their history. If that history is long enough, the arrow skips the calibrating state and is live right away.
 3. **Units**, plus current weight if there is no data yet (optional; it becomes the first weigh-in).
 4. **Goal** (lose / gain / maintain) and target weight (optional, but required for `maintain`). A hint appears if the target is on the wrong side of the current weight.
 5. **Pace** (see §7.5.1), with the over-1% warning if it applies (§7.5.2). For `maintain`, the band was already set on the goal step, so this step only explains what "steady" means.
@@ -292,18 +292,21 @@ The home screen redirects to onboarding until it is finished.
 ### 8.1 Read
 - **Permissions:** read body weight only. The app asks for nothing else.
 - **First connection:** import all available weight history.
-- **Ongoing sync:** pull new samples each time the app comes to the foreground. On iOS, also use a HealthKit background observer so the widget and reminders stay current. On Android, use the Health Connect changes token to fetch only what changed.
+- **Ongoing sync:** pull new samples each time the app comes to the foreground. On iOS, also use a HealthKit background observer so the widget and reminders stay current. On Android, use the Health Connect changes token to fetch only what changed. *(Built: foreground sync with the HealthKit anchor and the Health Connect changes token. The iOS background observer waits for the widget and reminders.)*
+- **History limit (Android):** the app also asks for `READ_HEALTH_DATA_HISTORY`; without it Health Connect only returns the 30 days before permission was first granted.
 - **Deduplication:** each Health sample is stored with its external ID. Re-syncing never creates duplicates. Samples deleted in Health are also deleted locally.
 - **Multiple sources** (for example, a smart scale *and* manual entries in Health): the same-day rule (§5.2) picks one value per day.
 
 ### 8.2 Write
 - Manual entries are written to Health as body-weight samples (when write-back is on).
 - The app records the external ID it gets back. When that sample comes back in a later sync, the app recognizes it as its own and does not import it twice.
+- Health samples can't be edited, so editing the weight or day of a written-back entry deletes the old sample and writes a new one. Deleting the entry deletes its sample too. Entries logged before Health was connected are not written back.
+- A sample deleted in Health unlinks the manual entry; the entry stays.
 
 ### 8.3 Permission denied or revoked
 - The app works fully with manual entry only.
 - Settings shows "Health: not connected", with a button that opens the system permission screen.
-- Data already imported is kept, and the user can delete it.
+- Data already imported is kept, and the user can delete it. iOS never reports a denied *read* (it just returns no samples), so an empty full re-import is not treated as "everything was deleted".
 
 ## 9. Data Model
 
