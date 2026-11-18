@@ -35,3 +35,23 @@ export function stepWeightInput(text: string, delta: number): string | null {
   if (value === null) return null;
   return Math.max(0, Math.round((value + delta) * 10) / 10).toFixed(1);
 }
+
+export type WeightKey = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '.' | 'back';
+
+/**
+ * Applies one keypad press to the typed weight. With `replace`, the shown value is
+ * treated as selected, so a digit or point starts over and backspace clears it.
+ * Keeps at most three whole digits and one decimal, as body weights need no more.
+ */
+export function pressWeightKey(text: string, key: WeightKey, replace = false): string {
+  const current = replace ? '' : text;
+  if (key === 'back') return current.slice(0, -1);
+  if (key === '.') {
+    if (current.includes('.')) return current;
+    return current === '' ? '0.' : `${current}.`;
+  }
+  const [whole, decimals] = current.split('.');
+  if (decimals !== undefined) return decimals.length >= 1 ? current : current + key;
+  if (whole === '0') return key;
+  return whole.length >= 3 ? current : current + key;
+}

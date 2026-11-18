@@ -50,6 +50,7 @@ export function WeightField({ label, initialKg, unit, placeholder, onChange }: W
           value={text}
           onChangeText={update}
           keyboardType="decimal-pad"
+          selectTextOnFocus
           placeholder={placeholder}
           placeholderTextColor={theme.textSecondary}
           accessibilityLabel={`${label} in ${unit}`}
